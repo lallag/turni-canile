@@ -298,18 +298,52 @@ elif menu == "👀 Panoramica":
                             st.caption(f"Note: {t['note']}")
 
                         if st.session_state.is_admin:
-                            if st.button(
-                                f"🗑️ Elimina ({t['volontario']})",
-                                key=f"del_{giorno}_{fascia_nome}_{t['id']}",
-                            ):
-                                lista_aggiornata = [
-                                    item
-                                    for item in carica_file_json(DB_TURNI, [])
-                                    if item["id"] != t["id"]
-                                ]
-                                salva_file_json(DB_TURNI, lista_aggiornata)
-                                st.success("Turno eliminato!")
-                                st.rerun()
+                            col_mod, col_del = st.columns(2)
+                            with col_mod:
+                                if st.button(
+                                    f"✏️ Modifica ({t['volontario']})",
+                                    key=f"mod_btn_{giorno}_{fascia_nome}_{t['id']}",
+                                ):
+                                    st.session_state[f"editing_{t['id']}"] = not st.session_state.get(f"editing_{t['id']}", False)
+                                    st.rerun()
+                            with col_del:
+                                if st.button(
+                                    f"🗑️ Elimina ({t['volontario']})",
+                                    key=f"del_{giorno}_{fascia_nome}_{t['id']}",
+                                ):
+                                    lista_aggiornata = [
+                                        item
+                                        for item in carica_file_json(DB_TURNI, [])
+                                        if item["id"] != t["id"]
+                                    ]
+                                    salva_file_json(DB_TURNI, lista_aggiornata)
+                                    if f"editing_{t['id']}" in st.session_state:
+                                        del st.session_state[f"editing_{t['id']}"]
+                                    st.success("Turno eliminato!")
+                                    st.rerun()
+
+                            if st.session_state.get(f"editing_{t['id']}", False):
+                                with st.form(key=f"form_mod_{t['id']}"):
+                                    st.subheader(f"Modifica Turno di {t['volontario']}")
+                                    nuovo_orario = st.text_input("Orario:", value=t["orario"])
+                                    nuove_note = st.text_area("Note:", value=t.get("note", ""))
+                                    nuovi_cani = st.multiselect(
+                                        "Cani gestiti:",
+                                        st.session_state.cani,
+                                        default=[c for c in t["cani_fatti"] if c in st.session_state.cani]
+                                    )
+                                    btn_salva_mod = st.form_submit_button("Salva Modifiche ✅")
+                                    if btn_salva_mod:
+                                        lista_completa = carica_file_json(DB_TURNI, [])
+                                        for item in lista_completa:
+                                            if item["id"] == t["id"]:
+                                                item["orario"] = nuovo_orario
+                                                item["note"] = nuove_note
+                                                item["cani_fatti"] = nuovi_cani
+                                        salva_file_json(DB_TURNI, lista_completa)
+                                        st.session_state[f"editing_{t['id']}"] = False
+                                        st.success("Turno modificato con successo!")
+                                        st.rerun()
 
                     cani_coperti = set()
                     for t in turni_fascia:
@@ -554,24 +588,58 @@ elif menu == "📚 Archivio":
                                 st.caption(f"Note: {t['note']}")
 
                             if st.session_state.is_admin:
-                                if st.button(
-                                    f"🗑️ Elimina ({t['volontario']})",
-                                    key=(
-                                        f"del_storico_{giorno}_{fascia_nome}_{t['id']}"
-                                    ),
-                                ):
-                                    lista_aggiornata = [
-                                        item
-                                        for item in carica_file_json(
-                                            DB_TURNI, []
+                                col_mod, col_del = st.columns(2)
+                                with col_mod:
+                                    if st.button(
+                                        f"✏️ Modifica ({t['volontario']})",
+                                        key=f"mod_storico_{giorno}_{fascia_nome}_{t['id']}",
+                                    ):
+                                        st.session_state[f"editing_{t['id']}"] = not st.session_state.get(f"editing_{t['id']}", False)
+                                        st.rerun()
+                                with col_del:
+                                    if st.button(
+                                        f"🗑️ Elimina ({t['volontario']})",
+                                        key=(
+                                            f"del_storico_{giorno}_{fascia_nome}_{t['id']}"
+                                        ),
+                                    ):
+                                        lista_aggiornata = [
+                                            item
+                                            for item in carica_file_json(
+                                                DB_TURNI, []
+                                            )
+                                            if item["id"] != t["id"]
+                                        ]
+                                        salva_file_json(
+                                            DB_TURNI, lista_aggiornata
                                         )
-                                        if item["id"] != t["id"]
-                                    ]
-                                    salva_file_json(
-                                        DB_TURNI, lista_aggiornata
-                                    )
-                                    st.success("Turno eliminato!")
-                                    st.rerun()
+                                        if f"editing_{t['id']}" in st.session_state:
+                                            del st.session_state[f"editing_{t['id']}"]
+                                        st.success("Turno eliminato!")
+                                        st.rerun()
+
+                                if st.session_state.get(f"editing_{t['id']}", False):
+                                    with st.form(key=f"form_mod_storico_{t['id']}"):
+                                        st.subheader(f"Modifica Turno di {t['volontario']}")
+                                        nuovo_orario = st.text_input("Orario:", value=t["orario"])
+                                        nuove_note = st.text_area("Note:", value=t.get("note", ""))
+                                        nuovi_cani = st.multiselect(
+                                            "Cani gestiti:",
+                                            st.session_state.cani,
+                                            default=[c for c in t["cani_fatti"] if c in st.session_state.cani]
+                                        )
+                                        btn_salva_mod = st.form_submit_button("Salva Modifiche ✅")
+                                        if btn_salva_mod:
+                                            lista_completa = carica_file_json(DB_TURNI, [])
+                                            for item in lista_completa:
+                                                if item["id"] == t["id"]:
+                                                    item["orario"] = nuovo_orario
+                                                    item["note"] = nuove_note
+                                                    item["cani_fatti"] = nuovi_cani
+                                            salva_file_json(DB_TURNI, lista_completa)
+                                            st.session_state[f"editing_{t['id']}"] = False
+                                            st.success("Turno modificato con successo!")
+                                            st.rerun()
 
                 with col_m:
                     mostra_fascia_storica("Mattina", col_m)
