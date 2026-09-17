@@ -364,18 +364,36 @@ elif menu == "👀 Panoramica":
     else:
         scelte_visualizzazione = [label_corr]
 
-    settimana_vista = st.radio(
-        "Seleziona la settimana da visualizzare:",
-        scelte_visualizzazione,
-        horizontal=True,
-    )
+    col_v1, col_v2 = st.columns([2, 1])
+    with col_v1:
+        settimana_vista = st.radio(
+            "Seleziona la settimana da visualizzare:",
+            scelte_visualizzazione,
+            horizontal=True,
+        )
 
     turni_filtrati = [
         t for t in turni_attuali if t.get("settimana") == settimana_vista
     ]
 
+    # --- MIGLIORIA 2: FILTRI RAPIDI PER CANE O VOLONTARIO ---
+    with st.expander("🔍 Filtra la panoramica (Cane o Volontario)", expanded=False):
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            tutti_i_cani_presenti = sorted(list(st.session_state.cani))
+            filtro_cane = st.selectbox("Filtra per specifico cane:", ["Tutti i cani"] + tutti_i_cani_presenti)
+        with col_f2:
+            tutti_i_volontari = sorted(list(set(t.get("volontario") for t in turni_filtrati if t.get("volontario"))))
+            filtro_volontario = st.selectbox("Filtra per specifico volontario:", ["Tutti i volontari"] + tutti_i_volontari)
+
+    # Applicazione dei filtri
+    if filtro_cane != "Tutti i cani":
+        turni_filtrati = [t for t in turni_filtrati if filtro_cane in t.get("cani_fatti", [])]
+    if filtro_volontario != "Tutti i volontari":
+        turni_filtrati = [t for t in turni_filtrati if t.get("volontario") == filtro_volontario]
+
     if not turni_filtrati:
-        st.info("Nessun turno inserito al momento per questo periodo.")
+        st.info("Nessun turno trovato con i filtri selezionati per questo periodo.")
     else:
         giorni_settimana = [
             "Lunedì",
@@ -388,8 +406,22 @@ elif menu == "👀 Panoramica":
         ]
 
         for giorno in giorni_settimana:
-            st.markdown(f"## 📌 {giorno}")
             turni_giorno = [t for t in turni_filtrati if t["giorno"] == giorno]
+            if not turni_giorno and (filtro_cane != "Tutti i cani" or filtro_volontario != "Tutti i volontari"):
+                continue  # Salta i giorni vuoti se stiamo filtrando
+                
+            st.markdown(f"## 📌 {giorno}")
+            
+            # --- MIGLIORIA 3: PULSANTE COPIA PER WHATSAPP ---
+            testo_wa = f"*Turni Canile - {giorno} ({settimana_vista})*\n"
+            ha_turni_wa = False
+            for t_wa in turni_giorno:
+                ha_turni_wa = True
+                c_str = ", ".join(t_wa['cani_fatti'])
+                testo_wa += f"• {t_wa['volontario']} ({t_wa['fascia']} - {t_wa['orario']}) 🐾 [{c_str}]\n"
+            
+            if ha_turni_wa:
+                st.code(testo_wa, language=None)
 
             col_m, col_p = st.columns(2)
 
@@ -430,21 +462,22 @@ elif menu == "👀 Panoramica":
                                 ):
                                     st.session_state[f"editing_{t['id']}"] = not st.session_state.get(f"editing_{t['id']}", False)
                                     st.rerun()
+                            
                             with col_del:
-                                if st.button(
-                                    f"🗑️ Elimina ({t['volontario']})",
-                                    key=f"del_{giorno}_{fascia_nome}_{t['id']}",
-                                ):
-                                    lista_aggiornata = [
-                                        item
-                                        for item in carica_file_json(DB_TURNI, [])
-                                        if item["id"] != t["id"]
-                                    ]
-                                    salva_file_json(DB_TURNI, lista_aggiornata)
-                                    if f"editing_{t['id']}" in st.session_state:
-                                        del st.session_state[f"editing_{t['id']}"]
-                                    st.success("Turno eliminato!")
-                                    st.rerun()
+                                # --- MIGLIORIA 1: ELIMINAZIONE SICURA CON POPOVER DI CONFERMA ---
+                                with st.popover(f"🗑️ Elimina ({t['volontario']})"):
+                                    st.write("Sei sicuro di voler eliminare questo turno?")
+                                    if st.button("Conferma Eliminazione 🛑", key=f"conf_del_{t['id']}"):
+                                        lista_aggiornata = [
+                                            item
+                                            for item in carica_file_json(DB_TURNI, [])
+                                            if item["id"] != t["id"]
+                                        ]
+                                        salva_file_json(DB_TURNI, lista_aggiornata)
+                                        if f"editing_{t['id']}" in st.session_state:
+                                            del st.session_state[f"editing_{t['id']}"]
+                                        st.success("Turno eliminato!")
+                                        st.rerun()
 
                             if st.session_state.get(f"editing_{t['id']}", False):
                                 with st.form(key=f"form_mod_{t['id']}"):
@@ -536,10 +569,14 @@ elif menu == "🐶 Cani":
             with col_d1:
                 st.write(f"🐾 **{dog}**")
             with col_d2:
-                if st.button("Elimina", key=f"del_{dog}"):
-                    st.session_state.cani.remove(dog)
-                    salva_file_json(DB_CANI, st.session_state.cani)
-                    st.rerun()
+                # --- MIGLIORIA 1: ELIMINAZIONE SICURA PER I CANI ---
+                with st.popover("Elimina"):
+                    st.write(f"Confermi l'eliminazione di {dog}?")
+                    if st.button("Sì, elimina", key=f"conf_del_dog_{dog}"):
+                        st.session_state.cani.remove(dog)
+                        salva_file_json(DB_CANI, st.session_state.cani)
+                        st.success(f"Cane '{dog}' eliminato.")
+                        st.rerun()
 
 elif menu == "📊 Statistiche":
     st.header("📊 Statistiche Uscite Cani")
