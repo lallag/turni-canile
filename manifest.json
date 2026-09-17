@@ -7,7 +7,7 @@
   "theme_color": "#ffffff",
   "icons": [
     {
-      "src": "https://github.com/lallag/turni-canile/blob/main/icona.jpg?raw=true"
+      "src": "https://raw.githubusercontent.com/lallag/turni-canile/main/icona.jpg?v=99",
       "sizes": "512x512",
       "type": "image/jpeg"
     }
