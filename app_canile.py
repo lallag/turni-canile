@@ -33,7 +33,7 @@ def salva_file_json(filename, data):
 # Inizializzazione stato con i file su GitHub
 if "cani" not in st.session_state:
   st.session_state.cani = carica_file_json(
-      DB_CANI, ["Fido", "Luna", "Rocky", "Maya"]
+      DB_CANI, ["Marley", "Diego", "Lucky", "Macchia", "Sami", "Bonnie", "Giada", "Nelson", "Amber"]
   )
 
 if "turni" not in st.session_state:
@@ -96,11 +96,12 @@ else:
     st.session_state.is_admin = False
     st.rerun()
 
+# --- MENU PRINCIPALE AGGIORNATO (Statistiche spostate prima dell'Archivio) ---
 opzioni_menu = [
     "📅 Inserisci / Modifica Turno",
     "👀 Visualizza Panoramica Settimanale",
-    "📊 Statistiche Cani",
     "🐶 Gestione Cani",
+    "📊 Statistiche Cani",
     "📚 Archivio Storico",
 ]
 menu = st.sidebar.selectbox("Menu", opzioni_menu)
@@ -308,57 +309,6 @@ elif menu == "👀 Visualizza Panoramica Settimanale":
 
       st.markdown("---")
 
-elif menu == "📊 Statistiche Cani":
-  st.header("📊 Statistiche Uscite Cani")
-  st.markdown(
-      "Monitora quante volte ogni cane è uscito in una determinata settimana"
-      " e confronta i dati storici."
-  )
-
-  tutti_i_turni = carica_file_json(DB_TURNI, [])
-  tutte_le_settimane = sorted(
-      list(set(t.get("settimana") for t in tutti_i_turni))
-  )
-
-  if label_corr not in tutte_le_settimane:
-    tutte_le_settimane.insert(0, label_corr)
-  if label_pros not in tutte_le_settimane and is_weekend_o_venerdi_sera:
-    tutte_le_settimane.append(label_pros)
-
-  settimana_stat = st.selectbox(
-      "Seleziona settimana da analizzare:", tutte_le_settimane
-  )
-
-  turni_stat = [t for t in tutti_i_turni if t.get("settimana") == settimana_stat]
-
-  conteggio_cani = {cane: 0 for cane in st.session_state.cani}
-  for t in turni_stat:
-    for c in t.get("cani_fatti", []):
-      if c in conteggio_cani:
-        conteggio_cani[c] += 1
-
-  if not st.session_state.cani:
-    st.info("Nessun cane registrato nel sistema.")
-  else:
-    df_stat = pd.DataFrame(
-        list(conteggio_cani.items()), columns=["Cane", "Numero Uscite"]
-    )
-    df_stat = df_stat.set_index("Cane")
-
-    col_grafico, col_tabella = st.columns([2, 1])
-
-    with col_grafico:
-      st.subheader(f"📈 Grafico Uscite ({settimana_stat})")
-      if sum(conteggio_cani.values()) == 0:
-        st.info("Nessuna uscita registrata per i cani in questa settimana.")
-      else:
-        st.bar_chart(df_stat)
-
-    with col_tabella:
-      st.subheader("📋 Dettaglio Uscite")
-      for cane, conteggio in conteggio_cani.items():
-        st.metric(label=f"🐾 {cane}", value=f"{conteggio} uscite")
-
 elif menu == "🐶 Gestione Cani":
   st.header("Gestione Anagrafica Cani")
 
@@ -395,6 +345,97 @@ elif menu == "🐶 Gestione Cani":
           st.session_state.cani.remove(dog)
           salva_file_json(DB_CANI, st.session_state.cani)
           st.rerun()
+
+elif menu == "📊 Statistiche Cani":
+  st.header("📊 Statistiche Uscite Cani")
+  st.markdown(
+      "Panoramica delle uscite settimanali per ogni cane (calcolate a livello"
+      " di fascia oraria, così se più volontari portano lo stesso cane nello"
+      " stesso turno, viene contato come un'unica uscita)."
+  )
+
+  tutti_i_turni = carica_file_json(DB_TURNI, [])
+  tutte_le_settimane = sorted(
+      list(set(t.get("settimana") for t in tutti_i_turni))
+  )
+
+  if label_corr not in tutte_le_settimane:
+    tutte_le_settimane.insert(0, label_corr)
+  if label_pros not in tutte_le_settimane and is_weekend_o_venerdi_sera:
+    tutte_le_settimane.append(label_pros)
+
+  settimana_stat = st.selectbox(
+      "Seleziona settimana da analizzare:", tutte_le_settimane
+  )
+
+  turni_stat = [t for t in tutti_i_turni if t.get("settimana"] == settimana_stat]
+
+  # --- CALCOLO CORRETTO: UN'USCITA PER FASCIA ORARIA (Giorno + Mattina/Pomeriggio) ---
+  # Raggruppiamo i cani usciti per (Giorno, Fascia)
+  uscite_per_cane = {cane: 0 for cane in st.session_state.cani}
+  
+  giorni_settimana = [
+      "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"
+  ]
+  
+  for giorno in giorni_settimana:
+    for fascia in ["Mattina", "Pomeriggio"]:
+      # Trova tutti i turni di quel giorno in quella fascia
+      turni_fascia = [
+          t for t in turni_stat if t.get("giorno") == giorno and t.get("fascia") == fascia
+      ]
+      
+      # Raccogli tutti i cani portati in questa fascia (senza doppioni se più volontari lo segnano)
+      cani_in_questa_fascia = set()
+      for t in turni_fascia:
+        for c in t.get("cani_fatti", []):
+          cani_in_questa_fascia.add(c)
+          
+      # Incrementa il contatore per ciascun cane uscito in questa fascia
+      for c in cani_in_questa_fascia:
+        if c in uscite_per_cane:
+          uscite_per_cane[c] += 1
+
+  if not st.session_state.cani:
+    st.info("Nessun cane registrato nel sistema.")
+  else:
+    # --- NUOVA ORGANIZZAZIONE VISIVA PIÙ ORDINATA ---
+    st.markdown("---")
+    
+    # 1. Metriche riassuntive in alto (griglia ordinata)
+    st.subheader("🎯 Riepilogo Uscite")
+    cols = st.columns(3)
+    
+    lista_cani_ordinata = sorted(uscite_per_cane.items(), key=lambda x: x[1], reverse=True)
+    
+    for idx, (cane, conteggio) in enumerate(lista_cani_ordinata):
+      col_corrente = cols[idx % 3]
+      with col_corrente:
+        st.metric(label=f"🐾 {cane}", value=f"{conteggio} uscite")
+        
+    st.markdown("---")
+    
+    # 2. Grafico e Tabella dettagliata affiancati ma puliti
+    col_grafico, col_tabella = st.columns([1.5, 1])
+
+    with col_grafico:
+      st.subheader("📈 Grafico a Barre")
+      if sum(uscite_per_cane.values()) == 0:
+        st.info("Nessuna uscita registrata per i cani in questa settimana.")
+      else:
+        df_stat = pd.DataFrame(
+            list(uscite_per_cane.items()), columns=["Cane", "Numero Uscite"]
+        )
+        df_stat = df_stat.set_index("Cane")
+        st.bar_chart(df_stat)
+
+    with col_tabella:
+      st.subheader("📋 Tabella Dati")
+      df_tabella = pd.DataFrame(
+          list(uscite_per_cane.items()), columns=["Cane", "Uscite"]
+      )
+      df_tabella = df_tabella.sort_values(by="Uscite", ascending=False).reset_index(drop=True)
+      st.dataframe(df_tabella, use_container_width=True)
 
 elif menu == "📚 Archivio Storico":
   st.header("📚 Archivio Storico delle Settimane Passate")
