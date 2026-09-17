@@ -10,46 +10,34 @@ st.set_page_config(
 )
 
 # --- GESTIONE DATI PERSISTENTI TRAMITE GITHUB ---
-DB_FILE = "turni.json"
+DB_TURNI = "turni.json"
+DB_CANI = "cani.json"
 
 
-def carica_turni_da_github():
-  if "turni" in st.session_state and st.session_state.turni:
-    return st.session_state.turni
+def carica_file_json(filename, default_val):
   try:
-    with open(DB_FILE, "r") as f:
-      data = json.load(f)
-      st.session_state.turni = data
-      return data
+    with open(filename, "r") as f:
+      return json.load(f)
   except Exception:
-    st.session_state.turni = []
-    return []
+    return default_val
 
 
-def salva_turni_su_github(turni):
-  st.session_state.turni = turni
+def salva_file_json(filename, data):
   try:
-    with open(DB_FILE, "w") as f:
-      json.dump(turni, f, indent=4)
+    with open(filename, "w") as f:
+      json.dump(data, f, indent=4)
   except Exception as e:
     pass
 
 
-# Inizializzazione stato
+# Inizializzazione stato con i file su GitHub
 if "cani" not in st.session_state:
-  st.session_state.cani = [
-      "Fido",
-      "Luna",
-      "Rocky",
-      "Maya",
-      "Thor",
-      "Nina",
-      "Zoe",
-      "Leo",
-  ]
+  st.session_state.cani = carica_file_json(
+      DB_CANI, ["Fido", "Luna", "Rocky", "Maya"]
+  )
 
 if "turni" not in st.session_state:
-  st.session_state.turni = carica_turni_da_github()
+  st.session_state.turni = carica_file_json(DB_TURNI, [])
 
 if "is_admin" not in st.session_state:
   st.session_state.is_admin = False
@@ -204,7 +192,7 @@ if menu == "📅 Inserisci / Modifica Turno":
             "Per favore, inserisci il tuo nome prima di registrare il turno."
         )
       else:
-        lista_corrente = carica_turni_da_github()
+        lista_turni = carica_file_json(DB_TURNI, [])
         nuovo_turno = {
             "id": str(datetime.now().timestamp()),
             "settimana": settimana_scelta,
@@ -215,14 +203,14 @@ if menu == "📅 Inserisci / Modifica Turno":
             "cani_fatti": cani_fatti,
             "note": note,
         }
-        lista_corrente.append(nuovo_turno)
-        salva_turni_su_github(lista_corrente)
+        lista_turni.append(nuovo_turno)
+        salva_file_json(DB_TURNI, lista_turni)
         st.success(f"Turno registrato con successo per {volontario}!")
 
 elif menu == "👀 Visualizza Panoramica Settimanale":
   st.header("Gestione Turni e Copertura")
 
-  turni_attuali = carica_turni_da_github()
+  turni_attuali = carica_file_json(DB_TURNI, [])
 
   if is_weekend_o_venerdi_sera:
     scelte_visualizzazione = [label_corr, label_pros]
@@ -290,10 +278,10 @@ elif menu == "👀 Visualizza Panoramica Settimanale":
               ):
                 lista_aggiornata = [
                     item
-                    for item in carica_turni_da_github()
+                    for item in carica_file_json(DB_TURNI, [])
                     if item["id"] != t["id"]
                 ]
-                salva_turni_su_github(lista_aggiornata)
+                salva_file_json(DB_TURNI, lista_aggiornata)
                 st.success("Turno eliminato!")
                 st.rerun()
 
@@ -327,12 +315,11 @@ elif menu == "📊 Statistiche Cani":
       " e confronta i dati storici."
   )
 
-  tutti_i_turni = carica_turni_da_github()
+  tutti_i_turni = carica_file_json(DB_TURNI, [])
   tutte_le_settimane = sorted(
       list(set(t.get("settimana") for t in tutti_i_turni))
   )
 
-  # Assicuriamoci che la settimana corrente sia sempre presente in cima
   if label_corr not in tutte_le_settimane:
     tutte_le_settimane.insert(0, label_corr)
   if label_pros not in tutte_le_settimane and is_weekend_o_venerdi_sera:
@@ -344,7 +331,6 @@ elif menu == "📊 Statistiche Cani":
 
   turni_stat = [t for t in tutti_i_turni if t.get("settimana") == settimana_stat]
 
-  # Calcolo conteggio uscite per ogni cane
   conteggio_cani = {cane: 0 for cane in st.session_state.cani}
   for t in turni_stat:
     for c in t.get("cani_fatti", []):
@@ -393,6 +379,7 @@ elif menu == "🐶 Gestione Cani":
     if st.button("Aggiungi Cane"):
       if new_dog.strip() and new_dog not in st.session_state.cani:
         st.session_state.cani.append(new_dog.strip())
+        salva_file_json(DB_CANI, st.session_state.cani)
         st.success(f"Cane '{new_dog}' aggiunto con successo!")
         st.rerun()
       elif new_dog in st.session_state.cani:
@@ -406,6 +393,7 @@ elif menu == "🐶 Gestione Cani":
       with col_d2:
         if st.button("Elimina", key=f"del_{dog}"):
           st.session_state.cani.remove(dog)
+          salva_file_json(DB_CANI, st.session_state.cani)
           st.rerun()
 
 elif menu == "📚 Archivio Storico":
@@ -415,7 +403,7 @@ elif menu == "📚 Archivio Storico":
       " precedenza."
   )
 
-  tutti_i_turni = carica_turni_da_github()
+  tutti_i_turni = carica_file_json(DB_TURNI, [])
   tutte_le_settimane = sorted(
       list(set(t.get("settimana") for t in tutti_i_turni))
   )
@@ -486,10 +474,10 @@ elif menu == "📚 Archivio Storico":
                 ):
                   lista_aggiornata = [
                       item
-                      for item in carica_turni_da_github()
+                      for item in carica_file_json(DB_TURNI, [])
                       if item["id"] != t["id"]
                   ]
-                  salva_turni_su_github(lista_aggiornata)
+                  salva_file_json(DB_TURNI, lista_aggiornata)
                   st.success("Turno eliminato!")
                   st.rerun()
 
