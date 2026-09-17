@@ -7,12 +7,12 @@ st.set_page_config(
     page_title="Gestione Turni Canile", page_icon="icona.jpg", layout="wide"
 )
 
-# Tag aggiornati con versione forzata (?v=3) per aggirare la cache testarda di iOS
+# Tag aggiornati con versione forzata (?v=4) per aggirare la cache testarda di iOS
 st.markdown(
     """
     <head>
         <link rel="manifest" href="manifest.json">
-        <link rel="apple-touch-icon" href="https://github.com/lallag/turni-canile/blob/main/icona.jpg?raw=true&v=3">
+        <link rel="apple-touch-icon" href="https://github.com/lallag/turni-canile/blob/main/icona.jpg?raw=true&v=4">
     </head>
 """,
     unsafe_allow_html=True,
@@ -71,74 +71,73 @@ is_weekend_reale = (giorno_settimana > 4) or (
 )
 is_weekend_o_venerdi_sera = is_weekend_reale
 
-# --- INTESTAZIONE CON AREA RAPIDA IN ALTO A DESTRA ---
-col_titolo, col_azioni_destra = st.columns([2.5, 1.5])
-
-with col_titolo:
-    st.title("🐾 Turni Canile")
-
-with col_azioni_destra:
-    # Creiamo due colonne affiancate in alto: una per "I miei turni" e una per l'Admin
-    col_btn_miei, col_btn_admin = st.columns(2)
+# --- BARRA LATERALE (SIDEBAR) PER: I MIEI TURNI & ADMIN ---
+with st.sidebar:
+    st.image("icona.jpg", width=80) if st.sidebar else None
+    st.title("🐾 Menu Rapido")
     
-    with col_btn_miei:
-        with st.popover("🔍 I miei turni"):
-            st.markdown("### I tuoi turni prenotati")
-            volontari_esistenti_pop = carica_file_json(DB_TURNI, [])
-            nomi_pop = sorted(list(set(t.get("volontario", "").strip() for t in volontari_esistenti_pop if t.get("volontario"))))
+    # Sezione "I miei turni" nella sidebar
+    with st.expander("🔍 Cerca i miei turni", expanded=False):
+        volontari_esistenti_side = carica_file_json(DB_TURNI, [])
+        nomi_side = sorted(list(set(t.get("volontario", "").strip() for t in volontari_esistenti_side if t.get("volontario"))))
+        
+        if not nomi_side:
+            st.info("Nessun turno registrato nel sistema.")
+        else:
+            nome_cercato_side = st.selectbox("Seleziona il tuo nome:", nomi_side, key="selettore_miei_turni_sidebar")
+            turni_pers_side = [t for t in volontari_esistenti_side if t.get("volontario", "").strip().lower() == nome_cercato_side.lower()]
             
-            if not nomi_pop:
-                st.info("Nessun turno registrato nel sistema.")
+            if not turni_pers_side:
+                st.write("Nessun turno trovato.")
             else:
-                nome_cercato = st.selectbox("Seleziona il tuo nome:", nomi_pop, key="selettore_miei_turni_rapido")
-                turni_pers = [t for t in volontari_esistenti_pop if t.get("volontario", "").strip().lower() == nome_cercato.lower()]
-                
-                if not turni_pers:
-                    st.write("Nessun turno trovato.")
-                else:
-                    for tp in turni_pers:
-                        cani_str = ", ".join(tp.get("cani_fatti", []))
-                        st.markdown(f"• **{tp.get('settimana')}**<br>📅 {tp.get('giorno')} ({tp.get('fascia')})<br>⏰ {tp.get('orario')}<br>🐾 [{cani_str}]", unsafe_allow_html=True)
-                        st.markdown("---")
+                for tp in turni_pers_side:
+                    cani_str = ", ".join(tp.get("cani_fatti", []))
+                    st.markdown(f"• **{tp.get('settimana')}**<br>📅 {tp.get('giorno')} ({tp.get('fascia')})<br>⏰ {tp.get('orario')}<br>🐾 [{cani_str}]", unsafe_allow_html=True)
+                    st.markdown("---")
 
-    with col_btn_admin:
+    st.markdown("---")
+
+    # Sezione "Admin / Simulatore" nella sidebar
+    with st.expander("🔒 Area Admin", expanded=False):
         ADMIN_PASSWORD_CORRETTA = "canile2026"
-        with st.popover("🔒 Admin"):
-            if not st.session_state.is_admin:
-                with st.form("form_login_admin_top"):
-                    pwd_input = st.text_input("Password:", type="password", key="pwd_top")
-                    btn_login = st.form_submit_button("Sblocca")
-                    if btn_login:
-                        if pwd_input == ADMIN_PASSWORD_CORRETTA:
-                            st.session_state.is_admin = True
-                            st.success("Sbloccato!")
-                            st.rerun()
-                        else:
-                            st.error("Errata.")
+        if not st.session_state.is_admin:
+            with st.form("form_login_admin_side"):
+                pwd_input = st.text_input("Password:", type="password", key="pwd_side")
+                btn_login = st.form_submit_button("Sblocca")
+                if btn_login:
+                    if pwd_input == ADMIN_PASSWORD_CORRETTA:
+                        st.session_state.is_admin = True
+                        st.success("Sbloccato!")
+                        st.rerun()
+                    else:
+                        st.error("Errata.")
+        else:
+            st.success("🔓 Admin attivo")
+            scelta_simulazione = st.selectbox(
+                "Simulazione:",
+                [
+                    "📅 Automatico",
+                    "⚠️ Simula Weekend",
+                    "🟢 Simula Feriale",
+                ],
+                key="selettore_simulazione_side",
+            )
+
+            if scelta_simulazione == "⚠️ Simula Weekend":
+                is_weekend_o_venerdi_sera = True
+            elif scelta_simulazione == "🟢 Simula Feriale":
+                is_weekend_o_venerdi_sera = False
             else:
-                st.success("🔓 Admin attivo")
-                scelta_simulazione = st.selectbox(
-                    "Simulazione:",
-                    [
-                        "📅 Automatico",
-                        "⚠️ Simula Weekend",
-                        "🟢 Simula Feriale",
-                    ],
-                    key="selettore_simulazione_top",
-                )
+                is_weekend_o_venerdi_sera = is_weekend_reale
 
-                if scelta_simulazione == "⚠️ Simula Weekend":
-                    is_weekend_o_venerdi_sera = True
-                elif scelta_simulazione == "🟢 Simula Feriale":
-                    is_weekend_o_venerdi_sera = False
-                else:
-                    is_weekend_o_venerdi_sera = is_weekend_reale
+            if st.button("🔒 Esci Admin", key="esci_admin_side"):
+                st.session_state.is_admin = False
+                st.rerun()
 
-                if st.button("🔒 Esci Admin", key="esci_admin_top"):
-                    st.session_state.is_admin = False
-                    st.rerun()
+# --- INTESTAZIONE PRINCIPALE ---
+st.title("🐾 Turni Canile")
 
-# --- MENU PRINCIPALE IN ALTO (Senza la tab "I miei turni" che ora è comodamente in alto) ---
+# --- MENU PRINCIPALE IN ALTO ---
 opzioni_menu = [
     "📅 Inserisci",
     "👀 Panoramica",
@@ -185,7 +184,6 @@ def get_lista_volontari():
     return sorted(list(nomi))
 
 
-# Funzione intelligente per calcolare i cani più frequenti di un determinato volontario
 def get_cani_frequenti_volontario(nome_volontario):
     if not nome_volontario or nome_volontario == "➕ Altro / Nuovo volontario" or nome_volontario == "-- Seleziona il tuo nome --":
         return []
@@ -199,9 +197,7 @@ def get_cani_frequenti_volontario(nome_volontario):
                 if c in st.session_state.cani:
                     conteggio_cani[c] = conteggio_cani.get(c, 0) + 1
                     
-    # Ordiniamo i cani per frequenza decrescente
     cani_ordinati = sorted(conteggio_cani.items(), key=lambda x: x[1], reverse=True)
-    # Restituiamo i primi più frequenti (es. i primi 3 o quelli scelti più spesso)
     return [c[0] for c in cani_ordinati if c[1] >= 1]
 
 
@@ -273,7 +269,6 @@ if menu == "📅 Inserisci":
 
         st.subheader("Gestione Cani per questo turno")
 
-        # Determina i suggerimenti intelligenti basati sullo storico del volontario
         nome_temp_controllo = scelta_volontario_dropdown if scelta_volontario_dropdown != "➕ Altro / Nuovo volontario" else volontario_nuovo_input
         cani_suggeriti = get_cani_frequenti_volontario(nome_temp_controllo)
 
@@ -282,23 +277,24 @@ if menu == "📅 Inserisci":
             seleziona_tutti = st.checkbox("🐾 Seleziona TUTTI i cani")
         with col_cani_op2:
             if cani_suggeriti:
-                st.caption(f"💡 Suggerimento basato sulle tue abitudini: {', '.join(cani_suggeriti)}")
+                st.caption(f"💡 Suggerimento abitudini: {', '.join(cani_suggeriti)}")
 
         if seleziona_tutti:
             cani_fatti = st.multiselect(
-                "✅ Cani che sei autorizzato a gestire:",
+                "✅ Cani che sei autorizzato a gestire (obbligatorio selezionarne almeno uno):",
                 st.session_state.cani,
                 default=st.session_state.cani,
             )
         elif cani_suggeriti:
             cani_fatti = st.multiselect(
-                "✅ Cani che sei autorizzato a gestire:",
+                "✅ Cani che sei autorizzato a gestire (obbligatorio selezionarne almeno uno):",
                 st.session_state.cani,
                 default=cani_suggeriti
             )
         else:
             cani_fatti = st.multiselect(
-                "✅ Cani che sei autorizzato a gestire:", st.session_state.cani
+                "✅ Cani che sei autorizzato a gestire (obbligatorio selezionarne almeno uno):", 
+                st.session_state.cani
             )
 
         submit_button = st.form_submit_button(label="Registra Turno 🚀")
@@ -324,6 +320,8 @@ if menu == "📅 Inserisci":
             if not errore_fascia:
                 if volontario == "":
                     st.warning("Per favore, seleziona o inserisci il tuo nome prima di registrare il turno.")
+                elif not cani_fatti:
+                    st.error("❌ **Errore:** Devi selezionare almeno un cane per poter registrare il turno!")
                 else:
                     lista_turni = carica_file_json(DB_TURNI, [])
                     
@@ -465,16 +463,19 @@ elif menu == "👀 Panoramica":
                                     )
                                     btn_salva_mod = st.form_submit_button("Salva Modifiche ✅")
                                     if btn_salva_mod:
-                                        lista_completa = carica_file_json(DB_TURNI, [])
-                                        for item in lista_completa:
-                                            if item["id"] == t["id"]:
-                                                item["orario"] = nuovo_orario
-                                                item["note"] = nuove_note
-                                                item["cani_fatti"] = nuovi_cani
-                                        salva_file_json(DB_TURNI, lista_completa)
-                                        st.session_state[f"editing_{t['id']}"] = False
-                                        st.success("Turno modificato con successo!")
-                                        st.rerun()
+                                        if not nuovi_cani:
+                                            st.error("Errore: seleziona almeno un cane.")
+                                        else:
+                                            lista_completa = carica_file_json(DB_TURNI, [])
+                                            for item in lista_completa:
+                                                if item["id"] == t["id"]:
+                                                    item["orario"] = nuovo_orario
+                                                    item["note"] = nuove_note
+                                                    item["cani_fatti"] = nuovi_cani
+                                            salva_file_json(DB_TURNI, lista_completa)
+                                            st.session_state[f"editing_{t['id']}"] = False
+                                            st.success("Turno modificato con successo!")
+                                            st.rerun()
 
                     cani_coperti = set()
                     for t in turni_fascia:
@@ -506,8 +507,8 @@ elif menu == "🐶 Cani":
 
     if not st.session_state.is_admin:
         st.warning(
-            "🔒 Questa sezione è protetta. Apri il menu 'Admin' in alto a destra"
-            " per inserire la password."
+            "🔒 Questa sezione è protetta. Apri l'area 'Admin' nella barra"
+            " laterale a sinistra per inserire la password."
         )
         st.subheader("Lista attuale dei cani in canile:")
         for dog in st.session_state.cani:
