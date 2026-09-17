@@ -1,13 +1,3 @@
-Perfetto! Integrare queste due funzionalità renderà l'applicazione molto più pratica e pulita: i volontari non dovranno più riscrivere ogni volta il proprio nome (evitando errori di battitura o duplicati) e avranno una sezione dedicata per vedere al volo tutti i propri impegni futuri o passati.
-
-Ecco il codice aggiornato dell'app Streamlit, con l'aggiunta di:
-
-1. **Menu a tendina intelligente per i volontari** (con la gestione dei nomi già registrati + l'opzione "Altro / Nuovo volontario").
-2. **La nuova sezione "🔍 I miei turni"** nel menu principale per filtrare e visualizzare tutti i turni associati a un singolo volontario.
-
-### Codice Aggiornato
-
-```python
 from datetime import datetime, timedelta, time
 import json
 import pandas as pd
@@ -672,5 +662,3 @@ elif menu == "📚 Archivio":
                 mostra_fascia_storica("Pomeriggio", col_p)
 
             st.markdown("---")
-
-```
