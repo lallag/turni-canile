@@ -151,28 +151,14 @@ with st.sidebar:
 # --- INTESTAZIONE PRINCIPALE ---
 st.title("🐾 Turni Canile")
 
-# --- CENTRO NOTIFICHE INTERNE ---
+# --- CENTRO NOTIFICHE GENERALE (SOLO COPERTURA ODIERNA) ---
 with st.container():
     turni_notifiche = carica_file_json(DB_TURNI, [])
     
-    # Notifica personale basata sul nome selezionato nella sidebar (se presente)
-    notifiche_personali = []
-    nome_attivo_side = st.session_state.get("selettore_miei_turni_sidebar", "")
-    if nome_attivo_side and nome_attivo_side != "Nessun turno registrato nel sistema.":
-         Miei_turni_attivi = [t for t in turni_notifiche if t.get("volontario", "").strip().lower() == nome_attivo_side.lower()]
-         if Miei_turni_attivi:
-             notifiche_personali.append(f"👤 **Ciao {nome_attivo_side}!** Hai {len(Miei_turni_attivi)} turni registrati nel sistema.")
-
-    # Controllo se ci sono cani scoperti oggi nel database
     giorni_map_ita = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
     giorno_oggi_str = giorni_map_ita[adesso.weekday()]
     
-    # Determiniamo stringa settimana corrente approssimativa per il controllo odierno
-    lunedi_corrente = adesso - timedelta(days=adesso.weekday())
-    domenica_corrente = lunedi_corrente + timedelta(days=6)
-    label_corr_check = f"Settimana Corrente ({lunedi_corrente.strftime('%d/%m/%Y')} - {domenica_corrente.strftime('%d/%m/%YM')})"
-    
-    turni_oggi = [t for t in turni_notifiche if t.get("giorno") == giorno_oggi_str]
+    turni_oggi = [t for t in turni_notifiche if t.get("giorno"] == giorno_oggi_str]
     cani_coperti_oggi = set()
     for t in turni_oggi:
         for c in t.get("cani_fatti", []):
@@ -180,13 +166,9 @@ with st.container():
             
     cani_scoperti_oggi = [c for c in st.session_state.cani if c not in cani_coperti_oggi]
 
-    # Mostriamo il box notifiche se c'è qualcosa da segnalare
-    if noti_totali := notifiche_personali or (cani_scoperti_oggi and len(turni_oggi) > 0):
-        with st.expander("🔔 Centro Notifiche e Avvisi", expanded=True):
-            for np in notifiche_personali:
-                st.info(np)
-            if cani_scoperti_oggi and len(turni_oggi) > 0:
-                st.warning(f"⚠️ **Attenzione ({giorno_oggi_str}):** Ci sono cani senza volontari assegnati oggi: `{', '.join(cani_scoperti_oggi)}`")
+    if len(turni_oggi) > 0 and cani_scoperti_oggi:
+        with st.expander("🔔 Avvisi Canile del Giorno", expanded=True):
+            st.warning(f"⚠️ **Attenzione ({giorno_oggi_str}):** Ci sono cani senza volontari assegnati oggi: `{', '.join(cani_scoperti_oggi)}`")
 
 st.markdown("---")
 
