@@ -8,12 +8,12 @@ st.set_page_config(
     page_title="Gestione Turni Canile", page_icon="icona.jpg", layout="wide"
 )
 
-# Tag aggiornati con versione forzata (?v=7) per aggirare la cache testarda di iOS
+# Tag aggiornati con versione forzata (?v=10) per aggirare la cache testarda di iOS
 st.markdown(
     """
     <head>
         <link rel="manifest" href="manifest.json">
-        <link rel="apple-touch-icon" href="https://github.com/lallag/turni-canile/blob/main/icona.jpg?raw=true&v=7">
+        <link rel="apple-touch-icon" href="https://github.com/lallag/turni-canile/blob/main/icona.jpg?raw=true&v=10">
     </head>
 """,
     unsafe_allow_html=True,
@@ -224,7 +224,6 @@ if menu == "📅 Inserisci":
     st.markdown("### 👤 1. Il tuo Nome")
     scelte_volontario = ["-- Seleziona il tuo nome --"] + volontari_registrati + ["➕ Altro / Nuovo volontario"]
     
-    # Usiamo un widget interattivo reattivo fuori dal form
     scelta_volontario_dropdown = st.selectbox("Seleziona o inserisci il tuo Nome e Cognome:", scelte_volontario, key="selettore_nome_principale")
     
     volontario_finale = ""
@@ -281,7 +280,6 @@ if menu == "📅 Inserisci":
 
             note = st.text_area("Note aggiuntive (opzionale):")
 
-        # Recuperiamo i suggerimenti in base al nome già digitato/selezionato sopra
         cani_suggeriti = get_cani_frequenti_volontario(volontario_finale)
 
         col_cani_op1, col_cani_op2 = st.columns([1, 1])
@@ -422,6 +420,7 @@ elif menu == "👀 Panoramica":
                         if t["note"]:
                             st.caption(f"Note: {t['note']}")
 
+                        # --- MODIFICA ED ELIMINAZIONE PROTETTE DA AREA ADMIN ---
                         if st.session_state.is_admin:
                             col_mod, col_del = st.columns(2)
                             with col_mod:
