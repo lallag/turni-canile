@@ -1,4 +1,3 @@
-cat << 'EOF' > app_canile.py
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
@@ -276,4 +275,3 @@ elif menu == "📚 Archivio Storico":
                     mostra_fascia_storica("Pomeriggio", col_p)
                     
                 st.markdown("---")
-EOF
