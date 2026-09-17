@@ -10,11 +10,10 @@ st.set_page_config(
 )
 st.markdown("""
     <style>
-    /* Ingrandisce il pulsante/freccia del menu a scomparsa su mobile */
-    button[kind="header"] {
-        transform: scale(1.4);
-        transform-origin: left center;
-        margin-left: 5px;
+    /* Ingrandisce qualsiasi icona o pulsante nell'header in alto a sinistra (menu mobile) */
+    header [data-testid="baseButton-header"], header button {
+        transform: scale(1.6) !important;
+        transform-origin: left center !important;
     }
     </style>
 """, unsafe_allow_html=True)
