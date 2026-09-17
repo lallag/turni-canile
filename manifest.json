@@ -1,5 +1,5 @@
 {
-  "name": "Gestione Turni Canile",
+  "name": "Turni canile",
   "short_name": "Canile",
   "start_url": "/",
   "display": "standalone",
@@ -7,7 +7,7 @@
   "theme_color": "#ffffff",
   "icons": [
     {
-      "src": "https://github.com/lallag/turni-canile/blob/main/icona.jpg?raw=true&v=2",
+      "src": "https://github.com/lallag/turni-canile/blob/main/icona.jpg?raw=true",
       "sizes": "512x512",
       "type": "image/jpeg"
     }
