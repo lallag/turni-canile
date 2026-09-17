@@ -72,7 +72,7 @@ is_weekend_reale = (giorno_settimana > 4) or (
 )
 is_weekend_o_venerdi_sera = is_weekend_reale
 
-# --- BARRA LATERALE (SIDEBAR) PER: I MIEI TURNI & ADMIN ---
+# --- BARRA LATERALE (SIDEBAR) ---
 with st.sidebar:
     if os.path.exists("icona.jpg"):
         st.image("icona.jpg", width=80)
@@ -97,6 +97,17 @@ with st.sidebar:
                     cani_str = ", ".join(tp.get("cani_fatti", []))
                     st.markdown(f"• **{tp.get('settimana')}**<br>📅 {tp.get('giorno')} ({tp.get('fascia')})<br>⏰ {tp.get('orario')}<br>🐾 [{cani_str}]", unsafe_allow_html=True)
                     st.markdown("---")
+
+    st.markdown("---")
+
+    # --- FILTRI PANORAMICA NELLA SIDEBAR ---
+    with st.expander("🎛️ Filtra Panoramica", expanded=False):
+        tutti_i_cani_presenti = sorted(list(st.session_state.cani))
+        filtro_cane = st.selectbox("Filtra per cane:", ["Tutti i cani"] + tutti_i_cani_presenti, key="filtro_cane_side")
+        
+        turni_temp = carica_file_json(DB_TURNI, [])
+        tutti_i_volontari = sorted(list(set(t.get("volontario") for t in turni_temp if t.get("volontario"))))
+        filtro_volontario = st.selectbox("Filtra per volontario:", ["Tutti i volontari"] + tutti_i_volontari, key="filtro_vol_side")
 
     st.markdown("---")
 
@@ -364,33 +375,29 @@ elif menu == "👀 Panoramica":
     else:
         scelte_visualizzazione = [label_corr]
 
-    col_v1, col_v2 = st.columns([2, 1])
-    with col_v1:
-        settimana_vista = st.radio(
-            "Seleziona la settimana da visualizzare:",
-            scelte_visualizzazione,
-            horizontal=True,
-        )
+    settimana_vista = st.radio(
+        "Seleziona la settimana da visualizzare:",
+        scelte_visualizzazione,
+        horizontal=True,
+    )
 
     turni_filtrati = [
         t for t in turni_attuali if t.get("settimana") == settimana_vista
     ]
 
-    # --- MIGLIORIA 2: FILTRI RAPIDI PER CANE O VOLONTARIO ---
-    with st.expander("🔍 Filtra la panoramica (Cane o Volontario)", expanded=False):
-        col_f1, col_f2 = st.columns(2)
-        with col_f1:
-            tutti_i_cani_presenti = sorted(list(st.session_state.cani))
-            filtro_cane = st.selectbox("Filtra per specifico cane:", ["Tutti i cani"] + tutti_i_cani_presenti)
-        with col_f2:
-            tutti_i_volontari = sorted(list(set(t.get("volontario") for t in turni_filtrati if t.get("volontario"))))
-            filtro_volontario = st.selectbox("Filtra per specifico volontario:", ["Tutti i volontari"] + tutti_i_volontari)
+    # Applicazione dei filtri provenienti dalla Sidebar
+    if 'filtro_cane_side' in locals() or 'filtro_cane_side' in globals():
+        pass # gestito dai valori in session_state/sidebar
+    
+    if st.session_state.get("filtro_cane_side", "Tutti i cani") != "Tutti i cani":
+        cane_scelto = st.session_state["filtro_cane_side"]
+        turni_filtrati = [t for t in turni_filtrati if cane_scelto in t.get("cani_fatti", [])]
+        st.info(f"🔍 Filtro attivo nella sidebar per il cane: **{cane_scelto}**")
 
-    # Applicazione dei filtri
-    if filtro_cane != "Tutti i cani":
-        turni_filtrati = [t for t in turni_filtrati if filtro_cane in t.get("cani_fatti", [])]
-    if filtro_volontario != "Tutti i volontari":
-        turni_filtrati = [t for t in turni_filtrati if t.get("volontario") == filtro_volontario]
+    if st.session_state.get("filtro_vol_side", "Tutti i volontari") != "Tutti i volontari":
+        vol_scelto = st.session_state["filtro_vol_side"]
+        turni_filtrati = [t for t in turni_filtrati if t.get("volontario") == vol_scelto]
+        st.info(f"🔍 Filtro attivo nella sidebar per il volontario: **{vol_scelto}**")
 
     if not turni_filtrati:
         st.info("Nessun turno trovato con i filtri selezionati per questo periodo.")
@@ -407,12 +414,12 @@ elif menu == "👀 Panoramica":
 
         for giorno in giorni_settimana:
             turni_giorno = [t for t in turni_filtrati if t["giorno"] == giorno]
-            if not turni_giorno and (filtro_cane != "Tutti i cani" or filtro_volontario != "Tutti i volontari"):
-                continue  # Salta i giorni vuoti se stiamo filtrando
+            if not turni_giorno and (st.session_state.get("filtro_cane_side", "Tutti i cani") != "Tutti i cani" or st.session_state.get("filtro_vol_side", "Tutti i volontari") != "Tutti i volontari"):
+                continue
                 
             st.markdown(f"## 📌 {giorno}")
             
-            # --- MIGLIORIA 3: PULSANTE COPIA PER WHATSAPP ---
+            # --- PULSANTE COPIA PER WHATSAPP ---
             testo_wa = f"*Turni Canile - {giorno} ({settimana_vista})*\n"
             ha_turni_wa = False
             for t_wa in turni_giorno:
@@ -464,7 +471,7 @@ elif menu == "👀 Panoramica":
                                     st.rerun()
                             
                             with col_del:
-                                # --- MIGLIORIA 1: ELIMINAZIONE SICURA CON POPOVER DI CONFERMA ---
+                                # --- ELIMINAZIONE SICURA CON POPOVER DI CONFERMA ---
                                 with st.popover(f"🗑️ Elimina ({t['volontario']})"):
                                     st.write("Sei sicuro di voler eliminare questo turno?")
                                     if st.button("Conferma Eliminazione 🛑", key=f"conf_del_{t['id']}"):
@@ -569,7 +576,7 @@ elif menu == "🐶 Cani":
             with col_d1:
                 st.write(f"🐾 **{dog}**")
             with col_d2:
-                # --- MIGLIORIA 1: ELIMINAZIONE SICURA PER I CANI ---
+                # --- ELIMINAZIONE SICURA PER I CANI ---
                 with st.popover("Elimina"):
                     st.write(f"Confermi l'eliminazione di {dog}?")
                     if st.button("Sì, elimina", key=f"conf_del_dog_{dog}"):
