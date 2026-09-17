@@ -41,7 +41,6 @@ if 'turni' not in st.session_state:
 
 if 'is_admin' not in st.session_state:
     st.session_state.is_admin = False
-
 adesso = datetime.now()
 giorno_settimana = adesso.weekday()
 ora_attuale = adesso.hour
@@ -49,25 +48,27 @@ ora_attuale = adesso.hour
 is_weekend_reale = (giorno_settimana > 4) or (
     giorno_settimana == 4 and ora_attuale >= 18
 )
+is_weekend_o_venerdi_sera = is_weekend_reale
 
-# --- SIMULATORE PER ANTEPRIMA ---
-st.sidebar.markdown("---")
-st.sidebar.subheader("🧪 Simulatore Anteprima")
-scelta_simulazione = st.sidebar.selectbox(
-    "Forza visualizzazione:",
-    [
-        "📅 Automatico (Tempo Reale)",
-        "⚠️ Simula Venerdì Sera / Weekend",
-        "🟢 Simula Lunedì - Giovedì",
-    ],
-)
+# --- SIMULATORE PER ANTEPRIMA (VISIBILE SOLO AGLI ADMIN) ---
+if st.session_state.is_admin:
+  st.sidebar.markdown("---")
+  st.sidebar.subheader("🧪 Simulatore Anteprima (Admin)")
+  scelta_simulazione = st.sidebar.selectbox(
+      "Forza visualizzazione:",
+      [
+          "📅 Automatico (Tempo Reale)",
+          "⚠️ Simula Venerdì Sera / Weekend",
+          "🟢 Simula Lunedì - Giovedì",
+      ],
+  )
 
-if scelta_simulazione == "⚠️ Simula Venerdì Sera / Weekend":
-  is_weekend_o_venerdi_sera = True
-elif scelta_simulazione == "🟢 Simula Lunedì - Giovedì":
-  is_weekend_o_venerdi_sera = False
-else:
-  is_weekend_o_venerdi_sera = is_weekend_reale
+  if scelta_simulazione == "⚠️ Simula Venerdì Sera / Weekend":
+    is_weekend_o_venerdi_sera = True
+  elif scelta_simulazione == "🟢 Simula Lunedì - Giovedì":
+    is_weekend_o_venerdi_sera = False
+  else:
+    is_weekend_o_venerdi_sera = is_weekend_reale
 
 if is_weekend_o_venerdi_sera:
     st.warning("⚠️ **Promemoria Canile:** È iniziato il fine settimana! Ricordati di selezionare la **'Prossima Settimana'** qui sotto per inserire i tuoi turni per la settimana che sta per arrivare.")
