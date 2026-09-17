@@ -12,7 +12,7 @@ st.markdown(
     """
     <head>
         <link rel="apple-touch-icon" href="https://github.com/lallag/turni-canile/blob/main/icona.jpg?raw=true">
-        <link rel="icon" type="image/png" href="https://github.com/lallag/turni-canile/blob/main/icona.jpg?raw=true">
+        <link rel="icon" type="image/jpg" href="https://github.com/lallag/turni-canile/blob/main/icona.jpg?raw=true">
     </head>
 """,
     unsafe_allow_html=True,
