@@ -11,8 +11,8 @@ st.set_page_config(
 st.markdown(
     """
     <head>
-        <link rel="apple-touch-icon" href="zampa.png">
-        <link rel="icon" type="image/png" href="zampa.png">
+        <link rel="apple-touch-icon" href="icona.jpg">
+        <link rel="icon" type="image/png" href="icona.jpg">
     </head>
 """,
     unsafe_allow_html=True,
