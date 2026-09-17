@@ -1,209 +1,113 @@
-from datetime import datetime, timedelta, time
+from datetime import datetime, time
 import json
 import os
-import pandas as pd
 import streamlit as st
 
+# Nomi dei file JSON per il salvataggio dei dati
+DB_TURNI = "turni_volontari.json"
+DB_CANI = "cani_autorizzati.json"
+
+# Configurazione della pagina
 st.set_page_config(
-    page_title="Gestione Turni Canile", page_icon="icona.jpg", layout="wide"
+    page_title="Gestione Turni Rifugio", page_icon="🐾", layout="centered"
 )
 
-# Tag aggiornati con versione forzata (?v=5) per aggirare la cache testarda di iOS
-st.markdown(
-    """
-    <head>
-        <link rel="manifest" href="manifest.json">
-        <link rel="apple-touch-icon" href="https://github.com/lallag/turni-canile/blob/main/icona.jpg?raw=true&v=5">
-    </head>
-""",
-    unsafe_allow_html=True,
-)
 
-# --- GESTIONE DATI PERSISTENTI TRAMITE GITHUB / JSON ---
-DB_TURNI = "turni.json"
-DB_CANI = "cani.json"
-
-
-def carica_file_json(filename, default_val):
-    try:
-        with open(filename, "r") as f:
-            return json.load(f)
-    except Exception:
-        return default_val
+# --- FUNZIONI DI UTILITÀ PER I FILE JSON ---
+def carica_file_json(filename, default_value):
+    if os.path.exists(filename):
+        try:
+            with open(filename, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return default_value
+    return default_value
 
 
 def salva_file_json(filename, data):
-    try:
-        with open(filename, "w") as f:
-            json.dump(data, f, indent=4)
-    except Exception as e:
-        pass
+    with open(filename, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
 
 
-# Inizializzazione stato
+# --- INIZIALIZZAZIONE DATI GLOBALI ---
 if "cani" not in st.session_state:
-    st.session_state.cani = carica_file_json(
-        DB_CANI,
-        [
-            "Marley",
-            "Diego",
-            "Lucky",
-            "Macchia",
-            "Sami",
-            "Bonnie",
-            "Giada",
-            "Nelson",
-            "Amber",
-        ],
-    )
-
-if "turni" not in st.session_state:
-    st.session_state.turni = carica_file_json(DB_TURNI, [])
-
-if "is_admin" not in st.session_state:
-    st.session_state.is_admin = False
-
-adesso = datetime.now()
-giorno_settimana = adesso.weekday()
-ora_attuale = adesso.hour
-
-is_weekend_reale = (giorno_settimana > 4) or (
-    giorno_settimana == 4 and ora_attuale >= 18
-)
-is_weekend_o_venerdi_sera = is_weekend_reale
-
-# --- BARRA LATERALE (SIDEBAR) PER: I MIEI TURNI & ADMIN ---
-with st.sidebar:
-    if os.path.exists("icona.jpg"):
-        st.image("icona.jpg", width=80)
-    
-    st.title("🐾 Menu Rapido")
-    
-    # Sezione "I miei turni" nella sidebar
-    with st.expander("🔍 Cerca i miei turni", expanded=False):
-        volontari_esistenti_side = carica_file_json(DB_TURNI, [])
-        nomi_side = sorted(list(set(t.get("volontario", "").strip() for t in volontari_esistenti_side if t.get("volontario"))))
-        
-        if not nomi_side:
-            st.info("Nessun turno registrato nel sistema.")
-        else:
-            nome_cercato_side = st.selectbox("Seleziona il tuo nome:", nomi_side, key="selettore_miei_turni_sidebar")
-            turni_pers_side = [t for t in volontari_esistenti_side if t.get("volontario", "").strip().lower() == nome_cercato_side.lower()]
-            
-            if not turni_pers_side:
-                st.write("Nessun turno trovato.")
-            else:
-                for tp in turni_pers_side:
-                    cani_str = ", ".join(tp.get("cani_fatti", []))
-                    st.markdown(f"• **{tp.get('settimana')}**<br>📅 {tp.get('giorno')} ({tp.get('fascia')})<br>⏰ {tp.get('orario')}<br>🐾 [{cani_str}]", unsafe_allow_html=True)
-                    st.markdown("---")
-
-    st.markdown("---")
-
-    # Sezione "Admin / Simulatore" nella sidebar
-    with st.expander("🔒 Area Admin", expanded=False):
-        ADMIN_PASSWORD_CORRETTA = "canile2026"
-        if not st.session_state.is_admin:
-            with st.form("form_login_admin_side"):
-                pwd_input = st.text_input("Password:", type="password", key="pwd_side")
-                btn_login = st.form_submit_button("Sblocca")
-                if btn_login:
-                    if pwd_input == ADMIN_PASSWORD_CORRETTA:
-                        st.session_state.is_admin = True
-                        st.success("Sbloccato!")
-                        st.rerun()
-                    else:
-                        st.error("Errata.")
-        else:
-            st.success("🔓 Admin attivo")
-            scelta_simulazione = st.selectbox(
-                "Simulazione:",
-                [
-                    "📅 Automatico",
-                    "⚠️ Simula Weekend",
-                    "🟢 Simula Feriale",
-                ],
-                key="selettore_simulazione_side",
-            )
-
-            if scelta_simulazione == "⚠️ Simula Weekend":
-                is_weekend_o_venerdi_sera = True
-            elif scelta_simulazione == "🟢 Simula Feriale":
-                is_weekend_o_venerdi_sera = False
-            else:
-                is_weekend_o_venerdi_sera = is_weekend_reale
-
-            if st.button("🔒 Esci Admin", key="esci_admin_side"):
-                st.session_state.is_admin = False
-                st.rerun()
-
-# --- INTESTAZIONE PRINCIPALE ---
-st.title("🐾 Turni Canile")
-
-# --- MENU PRINCIPALE IN ALTO ---
-opzioni_menu = [
-    "📅 Inserisci",
-    "👀 Panoramica",
-    "🐶 Cani",
-    "📊 Statistiche",
-    "📚 Archivio",
-]
-menu = st.pills("Seleziona sezione:", opzioni_menu, default=opzioni_menu[0])
-st.markdown("---")
-
-
-def get_intervalli_settimane():
-    oggi = datetime.now()
-    lunedi_corrente = oggi - timedelta(days=oggi.weekday())
-    domenica_corrente = lunedi_corrente + timedelta(days=6)
-
-    lunedi_prossimo = lunedi_corrente + timedelta(days=7)
-    domenica_prossima = domenica_corrente + timedelta(days=7)
-
-    fmt = "%d/%m/%Y"
-    str_corr = f"Settimana Corrente ({lunedi_corrente.strftime(fmt)} - {domenica_corrente.strftime(fmt)})"
-    str_pros = f"Prossima Settimana ({lunedi_prossimo.strftime(fmt)} - {domenica_prossima.strftime(fmt)})"
-
-    return str_corr, str_pros
-
-
-label_corr, label_pros = get_intervalli_settimane()
-
-if is_weekend_o_venerdi_sera:
-    st.warning(
-        "⚠️ **Promemoria Canile:** È iniziato il fine settimana! Ricordati di"
-        " selezionare la **'Prossima Settimana'** qui sotto per inserire i tuoi"
-        " turni per la settimana che sta per arrivare."
-    )
+    # Lista predefinita di cani se il file non esiste
+    cani_default = [
+        "Giada",
+        "Rocky",
+        "Luna",
+        "Thor",
+        "Maya",
+        "Spike",
+        "Zoe",
+        "Leo",
+        "Nina",
+        "Milo",
+    ]
+    st.session_state.cani = carica_file_json(DB_CANI, cani_default)
 
 
 def get_lista_volontari():
-    turni_esistenti = carica_file_json(DB_TURNI, [])
-    nomi = set()
-    for t in turni_esistenti:
-        nome = t.get("volontario", "").strip()
-        if nome:
-            nomi.add(nome)
-    return sorted(list(nomi))
+    turni = carica_file_json(DB_TURNI, [])
+    volontari = sorted(
+        list(set(t.get("volontario", "").strip() for t in turni if t.get("volontario")))
+    )
+    return volontari
 
 
 def get_cani_frequenti_volontario(nome_volontario):
-    if not nome_volontario or nome_volontario == "➕ Altro / Nuovo volontario" or nome_volontario == "-- Seleziona il tuo nome --":
+    if not nome_volontario:
         return []
-    
-    turni_esistenti = carica_file_json(DB_TURNI, [])
-    conteggio_cani = {}
-    
-    for t in turni_esistenti:
-        if t.get("volontario", "").strip().lower() == nome_volontario.strip().lower():
-            for c in t.get("cani_fatti", []):
-                if c in st.session_state.cani:
-                    conteggio_cani[c] = conteggio_cani.get(c, 0) + 1
-                    
-    cani_ordinati = sorted(conteggio_cani.items(), key=lambda x: x[1], reverse=True)
-    return [c[0] for c in cani_ordinati if c[1] >= 1]
+    turni = carica_file_json(DB_TURNI, [])
+    cani_volontario = []
+    for t in turni:
+        if (
+            t.get("volontario", "").strip().lower()
+            == nome_volontario.strip().lower()
+        ):
+            cani_volontario.extend(t.get("cani_fatti", []))
+
+    # Conta le frequenze e restituisce i più usati in ordine
+    from collections import Counter
+
+    conteggio = Counter(cani_volontario)
+    return [cane for cane, _ in conteggio.most_common(5)]
 
 
+# --- CALCOLO SETTIMANE (CORRENTE E PROSSIMA) ---
+oggi = datetime.now()
+giorno_settimana = oggi.weekday()  # 0=Lunedì, 5=Sabato, 6=Domenica
+
+# Definiamo la logica delle etichette delle settimane
+# Dal venerdì sera alla domenica si passa a pianificare la settimana prossima come principale
+is_weekend_o_venerdi_sera = giorno_settimana >= 5 or (
+    giorno_settimana == 4 and oggi.hour >= 18
+)
+
+if is_weekend_o_venerdi_sera:
+    label_corr = "📅 Settimana in corso (questa)"
+    label_pros = "⏭️ Settimana prossima"
+else:
+    label_corr = "📅 Questa settimana"
+    label_pros = "⏭️ Settimana prossima (anteprima)"
+
+
+# --- MENU LATERALE (SIDEBAR) ---
+st.sidebar.title("🐾 Menu di Navigazione")
+menu = st.sidebar.radio(
+    "Vai a:",
+    [
+        "📅 Inserisci",
+        "📋 Visualizza Turni",
+        "📊 Riepilogo Cani",
+        "⚙️ Gestione Cani",
+    ],
+)
+
+
+# ==========================================
+# 1. INSERISCI TURNO
+# ==========================================
 if menu == "📅 Inserisci":
     st.header("Gestione Turni")
 
@@ -220,17 +124,32 @@ if menu == "📅 Inserisci":
 
     volontari_registrati = get_lista_volontari()
 
+    # Gestione preventiva del nome fuori dal form per renderlo reattivo subito
+    st.subheader("1. Il tuo Nome")
+    scelte_volontario = ["-- Seleziona il tuo nome --"] + volontari_registrati + ["➕ Altro / Nuovo volontario"]
+    
+    scelta_volontario_dropdown = st.selectbox(
+        "Seleziona o inserisci il tuo Nome e Cognome:", 
+        scelte_volontario, 
+        key="selettore_nome_principale"
+    )
+    
+    volontario_inserito = ""
+    if scelta_volontario_dropdown == "➕ Altro / Nuovo volontario":
+        volontario_inserito = st.text_input("Scrivi qui il tuo Nome e Cognome esatto:", key="input_nuovo_volontario_libero")
+        volontario_finale = volontario_inserito.strip()
+    elif scelta_volontario_dropdown != "-- Seleziona il tuo nome --":
+        volontario_finale = scelta_volontario_dropdown
+    else:
+        volontario_finale = ""
+
+    st.markdown("---")
+
     with st.form("form_turno"):
+        st.subheader("2. Dettagli Turno e Cani")
         col1, col2 = st.columns(2)
 
         with col1:
-            scelte_volontario = ["-- Seleziona il tuo nome --"] + volontari_registrati + ["➕ Altro / Nuovo volontario"]
-            scelta_volontario_dropdown = st.selectbox("Tuo Nome e Cognome:", scelte_volontario)
-            
-            volontario_nuovo_input = ""
-            if scelta_volontario_dropdown == "➕ Altro / Nuovo volontario":
-                volontario_nuovo_input = st.text_input("Scrivi il tuo Nome e Cognome:")
-
             giorno = st.selectbox(
                 "Giorno della settimana:",
                 [
@@ -270,10 +189,7 @@ if menu == "📅 Inserisci":
 
             note = st.text_area("Note aggiuntive (opzionale):")
 
-        st.subheader("Gestione Cani per questo turno")
-
-        nome_temp_controllo = scelta_volontario_dropdown if scelta_volontario_dropdown != "➕ Altro / Nuovo volontario" else volontario_nuovo_input
-        cani_suggeriti = get_cani_frequenti_volontario(nome_temp_controllo)
+        cani_suggeriti = get_cani_frequenti_volontario(volontario_finale)
 
         col_cani_op1, col_cani_op2 = st.columns([1, 1])
         with col_cani_op1:
@@ -303,13 +219,6 @@ if menu == "📅 Inserisci":
         submit_button = st.form_submit_button(label="Registra Turno 🚀")
 
         if submit_button:
-            if scelta_volontario_dropdown == "➕ Altro / Nuovo volontario":
-                volontario = volontario_nuovo_input.strip()
-            elif scelta_volontario_dropdown != "-- Seleziona il tuo nome --":
-                volontario = scelta_volontario_dropdown
-            else:
-                volontario = ""
-
             ora_limite_divisione = time(14, 0)
             errore_fascia = False
             
@@ -321,14 +230,14 @@ if menu == "📅 Inserisci":
                 errore_fascia = True
 
             if not errore_fascia:
-                if volontario == "":
-                    st.warning("Per favore, seleziona o inserisci il tuo nome prima di registrare il turno.")
+                if not volontario_finale:
+                    st.warning("⚠️ Per favore, seleziona il tuo nome dal menu a tendina o scrivi il tuo nome e cognome nell'apposito campo prima di registrare.")
                 elif not cani_fatti:
                     st.error("❌ **Errore:** Devi selezionare almeno un cane per poter registrare il turno!")
                 else:
                     lista_turni = carica_file_json(DB_TURNI, [])
                     
-                    volontario_normalizzato = volontario.strip().lower()
+                    volontario_normalizzato = volontario_finale.strip().lower()
                     doppione_trovato = any(
                         t.get("volontario", "").strip().lower() == volontario_normalizzato and
                         t.get("settimana") == settimana_scelta and
@@ -338,12 +247,12 @@ if menu == "📅 Inserisci":
                     )
 
                     if doppione_trovato:
-                        st.error(f"⚠️ **Attenzione:** {volontario} risulta già registrato per {giorno} ({fascia}) in questa settimana!")
+                        st.error(f"⚠️ **Attenzione:** {volontario_finale} risulta già registrato per {giorno} ({fascia}) in questa settimana!")
                     else:
                         nuovo_turno = {
                             "id": str(datetime.now().timestamp()),
                             "settimana": settimana_scelta,
-                            "volontario": volontario,
+                            "volontario": volontario_finale,
                             "giorno": giorno,
                             "fascia": fascia,
                             "orario": orario,
@@ -352,334 +261,153 @@ if menu == "📅 Inserisci":
                         }
                         lista_turni.append(nuovo_turno)
                         salva_file_json(DB_TURNI, lista_turni)
-                        st.success(f"Turno registrato con successo per {volontario}!")
+                        st.success(f"Turno registrato con successo per {volontario_finale}!")
 
-elif menu == "👀 Panoramica":
-    st.header("Gestione Turni e Copertura")
 
-    turni_attuali = carica_file_json(DB_TURNI, [])
+# ==========================================
+# 2. VISUALIZZA TURNI
+# ==========================================
+elif menu == "📋 Visualizza Turni":
+    st.header("📋 Tabellone Turni Registrati")
 
-    if is_weekend_o_venerdi_sera:
-        scelte_visualizzazione = [label_corr, label_pros]
+    lista_turni = carica_file_json(DB_TURNI, [])
+
+    if not lista_turni:
+        st.info("Nessun turno registrato al momento.")
     else:
-        scelte_visualizzazione = [label_corr]
+        # Filtro per settimana
+        settimane_disponibili = list(set(t.get("settimana") for t in lista_turni))
+        settimana_filtro = st.selectbox("Filtra per settimana:", sorted(settimane_disponibili))
 
-    settimana_vista = st.radio(
-        "Seleziona la settimana da visualizzare:",
-        scelte_visualizzazione,
-        horizontal=True,
-    )
+        turni_filtrati = [t for t in lista_turni if t.get("settimana") == settimana_filtro]
 
-    turni_filtrati = [
-        t for t in turni_attuali if t.get("settimana") == settimana_vista
-    ]
+        if not turni_filtrati:
+            st.info("Nessun turno trovato per questa settimana.")
+        else:
+            # Opzione per eliminare un turno
+            st.subheader("Modifica o Cancella Turno")
+            col_del1, col_del2 = st.columns([3, 1])
 
-    if not turni_filtrati:
-        st.info("Nessun turno inserito al momento per questo periodo.")
-    else:
-        giorni_settimana = [
-            "Lunedì",
-            "Martedì",
-            "Mercoledì",
-            "Giovedì",
-            "Venerdì",
-            "Sabato",
-            "Domenica",
-        ]
+            with col_del1:
+                opzioni_elimina = {
+                    f"{t['volontario']} - {t['giorno']} ({t['fascia']})": t['id']
+                    for t in turni_filtrati
+                }
+                scelta_da_eliminare = st.selectbox(
+                    "Seleziona il turno da rimuovere:", 
+                    list(opzioni_elimina.keys())
+                )
 
-        for giorno in giorni_settimana:
-            st.markdown(f"## 📌 {giorno}")
-            turni_giorno = [t for t in turni_filtrati if t["giorno"] == giorno]
-
-            col_m, col_p = st.columns(2)
-
-            def mostra_fascia_calendario(fascia_nome, col_container):
-                with col_container:
-                    st.markdown(f"### ☀️ {fascia_nome}")
-                    turni_fascia = [
-                        t for t in turni_giorno if t["fascia"] == fascia_nome
-                    ]
-
-                    if not turni_fascia:
-                        st.caption("Nessun volontario registrato.")
-                        st.markdown("**Cani scoperti:**")
-                        for c in sorted(st.session_state.cani):
-                            st.error(f"❌ {c}")
-                        return
-
-                    st.markdown("**Volontari presenti:**")
-                    for t in turni_fascia:
-                        cani_str = (
-                            ", ".join(t["cani_fatti"])
-                            if t["cani_fatti"]
-                            else "Nessuno"
-                        )
-                        st.write(
-                            f"• **{t['volontario']}** ({t['orario']}) 🐾 [{cani_str}]"
-                        )
-                        if t["note"]:
-                            st.caption(f"Note: {t['note']}")
-
-                        if st.session_state.is_admin:
-                            col_mod, col_del = st.columns(2)
-                            with col_mod:
-                                if st.button(
-                                    f"✏️ Modifica ({t['volontario']})",
-                                    key=f"mod_btn_{giorno}_{fascia_nome}_{t['id']}",
-                                ):
-                                    st.session_state[f"editing_{t['id']}"] = not st.session_state.get(f"editing_{t['id']}", False)
-                                    st.rerun()
-                            with col_del:
-                                if st.button(
-                                    f"🗑️ Elimina ({t['volontario']})",
-                                    key=f"del_{giorno}_{fascia_nome}_{t['id']}",
-                                ):
-                                    lista_aggiornata = [
-                                        item
-                                        for item in carica_file_json(DB_TURNI, [])
-                                        if item["id"] != t["id"]
-                                    ]
-                                    salva_file_json(DB_TURNI, lista_aggiornata)
-                                    if f"editing_{t['id']}" in st.session_state:
-                                        del st.session_state[f"editing_{t['id']}"]
-                                    st.success("Turno eliminato!")
-                                    st.rerun()
-
-                            if st.session_state.get(f"editing_{t['id']}", False):
-                                with st.form(key=f"form_mod_{t['id']}"):
-                                    st.subheader(f"Modifica Turno di {t['volontario']}")
-                                    
-                                    col_m1, col_m2 = st.columns(2)
-                                    with col_m1:
-                                        m_inizio = st.time_input("Ora Inizio:", value=time(8, 30), key=f"min_{t['id']}")
-                                    with col_m2:
-                                        m_fine = st.time_input("Ora Fine:", value=time(12, 0), key=f"mfin_{t['id']}")
-                                    
-                                    nuovo_orario = f"{m_inizio.strftime('%H:%M')} - {m_fine.strftime('%H:%M')}"
-                                    nuove_note = st.text_area("Note:", value=t.get("note", ""), key=f"note_mod_{t['id']}")
-                                    
-                                    nuovi_cani = st.multiselect(
-                                        "Cani gestiti:",
-                                        st.session_state.cani,
-                                        default=[c for c in t["cani_fatti"] if c in st.session_state.cani],
-                                        key=f"cani_mod_{t['id']}"
-                                    )
-                                    btn_salva_mod = st.form_submit_button("Salva Modifiche ✅")
-                                    if btn_salva_mod:
-                                        if not nuovi_cani:
-                                            st.error("Errore: seleziona almeno un cane.")
-                                        else:
-                                            lista_completa = carica_file_json(DB_TURNI, [])
-                                            for item in lista_completa:
-                                                if item["id"] == t["id"]:
-                                                    item["orario"] = nuovo_orario
-                                                    item["note"] = nuove_note
-                                                    item["cani_fatti"] = nuovi_cani
-                                            salva_file_json(DB_TURNI, lista_completa)
-                                            st.session_state[f"editing_{t['id']}"] = False
-                                            st.success("Turno modificato con successo!")
-                                            st.rerun()
-
-                    cani_coperti = set()
-                    for t in turni_fascia:
-                        for c in t["cani_fatti"]:
-                            cani_coperti.add(c)
-
-                    cani_scoperti = [
-                        c
-                        for c in st.session_state.cani
-                        if c not in cani_coperti
-                    ]
-
-                    st.markdown("**Cani scoperti:**")
-                    if cani_scoperti:
-                        for c in sorted(cani_scoperti):
-                            st.error(f"❌ {c}")
-                    else:
-                        st.success("Tutti i cani sono coperti!")
-
-            with col_m:
-                mostra_fascia_calendario("Mattina", col_m)
-            with col_p:
-                mostra_fascia_calendario("Pomeriggio", col_p)
-
-            st.markdown("---")
-
-elif menu == "🐶 Cani":
-    st.header("Gestione Anagrafica Cani")
-
-    if not st.session_state.is_admin:
-        st.warning(
-            "🔒 Questa sezione è protetta. Apri l'area 'Admin' nella barra"
-            " laterale a sinistra per inserire la password."
-        )
-        st.subheader("Lista attuale dei cani in canile:")
-        for dog in st.session_state.cani:
-            st.write(f"🐾 **{dog}**")
-    else:
-        st.markdown("Aggiungi o rimuovi i cani presenti in canile (Modalità Admin attiva).")
-
-        new_dog = st.text_input("Nome del nuovo cane:")
-        if st.button("Aggiungi Cane"):
-            if new_dog.strip() and new_dog not in st.session_state.cani:
-                st.session_state.cani.append(new_dog.strip())
-                salva_file_json(DB_CANI, st.session_state.cani)
-                st.success(f"Cane '{new_dog}' aggiunto con successo!")
-                st.rerun()
-            elif new_dog in st.session_state.cani:
-                st.warning("Questo cane è già presente nella lista.")
-
-        st.subheader("Lista attuale dei cani in canile:")
-        for dog in st.session_state.cani:
-            col_d1, col_d2 = st.columns([4, 1])
-            with col_d1:
-                st.write(f"🐾 **{dog}**")
-            with col_d2:
-                if st.button("Elimina", key=f"del_{dog}"):
-                    st.session_state.cani.remove(dog)
-                    salva_file_json(DB_CANI, st.session_state.cani)
+            with col_del2:
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("🗑️ Elimina Turno"):
+                    id_da_rimuovere = opzioni_elimina[scelta_da_eliminare]
+                    lista_turni = [t for t in lista_turni if t.get("id") != id_da_rimuovere]
+                    salva_file_json(DB_TURNI, lista_turni)
+                    st.success("Turno eliminato con successo!")
                     st.rerun()
 
-elif menu == "📊 Statistiche":
-    st.header("📊 Statistiche Uscite Cani")
-    
-    tutti_i_turni = carica_file_json(DB_TURNI, [])
-    tutte_le_settimane = sorted(
-        list(set(t.get("settimana") for t in tutti_i_turni))
-    )
-
-    if label_corr not in tutte_le_settimane:
-        tutte_le_settimane.insert(0, label_corr)
-    if label_pros not in tutte_le_settimane and is_weekend_o_venerdi_sera:
-        tutte_le_settimane.append(label_pros)
-
-    settimana_stat = st.selectbox(
-        "Seleziona settimana da analizzare:", tutte_le_settimane
-    )
-
-    turni_stat = [
-        t for t in tutti_i_turni if t.get("settimana") == settimana_stat
-    ]
-
-    uscite_per_cane = {cane: 0 for cane in st.session_state.cani}
-    giorni_settimana = [
-        "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"
-    ]
-
-    for giorno in giorni_settimana:
-        for fascia in ["Mattina", "Pomeriggio"]:
-            turni_fascia = [
-                t for t in turni_stat
-                if t.get("giorno") == giorno and t.get("fascia") == fascia
-            ]
-            cani_in_questa_fascia = set()
-            for t in turni_fascia:
-                for c in t.get("cani_fatti", []):
-                    cani_in_questa_fascia.add(c)
-
-            for c in cani_in_questa_fascia:
-                if c in uscite_per_cane:
-                    uscite_per_cane[c] += 1
-
-    if not st.session_state.cani:
-        st.info("Nessun cane registrato nel sistema.")
-    else:
-        st.markdown("---")
-        st.subheader("🎯 Riepilogo Uscite")
-        cols = st.columns(3)
-
-        lista_cani_ordinata = sorted(
-            uscite_per_cane.items(), key=lambda x: x[1], reverse=True
-        )
-
-        for idx, (cane, conteggio) in enumerate(lista_cani_ordinata):
-            col_corrente = cols[idx % 3]
-            with col_corrente:
-                st.metric(label=f"🐾 {cane}", value=f"{conteggio} uscite")
-
-        st.markdown("---")
-        col_grafico, col_tabella = st.columns([1.5, 1])
-
-        with col_grafico:
-            st.subheader("📈 Grafico a Barre")
-            if sum(uscite_per_cane.values()) == 0:
-                st.info("Nessuna uscita registrata per i cani in questa settimana.")
-            else:
-                df_stat = pd.DataFrame(
-                    list(uscite_per_cane.items()),
-                    columns=["Cane", "Numero Uscite"],
-                ).set_index("Cane")
-                st.bar_chart(df_stat)
-
-        with col_tabella:
-            st.subheader("📋 Tabella Dati")
-            df_tabella = pd.DataFrame(
-                list(uscite_per_cane.items()), columns=["Cane", "Uscite"]
-            ).sort_values(by="Uscite", ascending=False).reset_index(drop=True)
-            st.dataframe(df_tabella, use_container_width=True)
-
-elif menu == "📚 Archivio":
-    st.header("📚 Archivio Storico delle Settimane Passate")
-    
-    tutti_i_turni = carica_file_json(DB_TURNI, [])
-    tutte_le_settimane = sorted(
-        list(set(t.get("settimana") for t in tutti_i_turni))
-    )
-    settimane_storiche = [
-        s for s in tutte_le_settimane if s != label_corr and s != label_pros
-    ]
-
-    settimane_disponibili = (
-        settimane_storiche if settimane_storiche else tutte_le_settimane
-    )
-
-    if not settimane_disponibili:
-        st.info("Non ci sono ancora settimane passate archiviate.")
-    else:
-        storico_scelto = st.selectbox(
-            "Seleziona la settimana dall'archivio:", settimane_disponibili
-        )
-
-        turni_storico = [
-            t for t in tutti_i_turni if t.get("settimana") == storico_scelto
-        ]
-
-        giorni_settimana = [
-            "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"
-        ]
-
-        for giorno in giorni_settimana:
-            st.markdown(f"## 📌 {giorno}")
-            turni_giorno = [t for t in turni_storico if t["giorno"] == giorno]
-            col_m, col_p = st.columns(2)
-
-            def mostra_fascia_storica(fascia_nome, col_container):
-                with col_container:
-                    st.markdown(f"### ☀️ {fascia_nome}")
-                    turni_fascia = [
-                        t for t in turni_giorno if t["fascia"] == fascia_nome
-                    ]
-
-                    if not turni_fascia:
-                        st.caption("Nessun volontario registrato in questa fascia.")
-                        return
-
-                    st.markdown("**Volontari presenti:**")
-                    for t in turni_fascia:
-                        cani_str = (
-                            ", ".join(t["cani_fatti"])
-                            if t["cani_fatti"]
-                            else "Nessuno"
-                        )
-                        st.write(
-                            f"• **{t['volontario']}** ({t['orario']}) 🐾 [{cani_str}]"
-                        )
-                        if t["note"]:
-                            st.caption(f"Note: {t['note']}")
-
-            with col_m:
-                mostra_fascia_storica("Mattina", col_m)
-            with col_p:
-                mostra_fascia_storica("Pomeriggio", col_p)
-
             st.markdown("---")
+
+            # Ordinamento dei giorni
+            ordine_giorni = {
+                "Lunedì": 1,
+                "Martedì": 2,
+                "Mercoledì": 3,
+                "Giovedì": 4,
+                "Venerdì": 5,
+                "Sabato": 6,
+                "Domenica": 7,
+            }
+            turni_filtrati.sort(key=lambda x: (ordine_giorni.get(x.get("giorno"), 8), x.get("fascia")))
+
+            for t in turni_filtrati:
+                with st.container():
+                    st.markdown(
+                        f"### 👤 {t['volontario']} — **{t['giorno']} ({t['fascia']})**"
+                    )
+                    st.write(f"⏰ **Orario:** {t['orario']}")
+                    st.write(f"🐾 **Cani gestiti:** {', '.join(t['cani_fatti'])}")
+                    if t.get("note"):
+                        st.info(f"📝 **Note:** {t['note']}")
+                    st.markdown("---")
+
+
+# ==========================================
+# 3. RIEPILOGO CANI
+# ==========================================
+elif menu == "📊 Riepilogo Cani":
+    st.header("📊 Riepilogo Copertura Cani")
+
+    lista_turni = carica_file_json(DB_TURNI, [])
+
+    if not lista_turni:
+        st.info("Nessun dato disponibile per il riepilogo.")
+    else:
+        settimane_disponibili = list(set(t.get("settimana") for t in lista_turni))
+        settimana_filtro = st.selectbox("Seleziona settimana per il riepilogo:", sorted(settimane_disponibili))
+
+        turni_filtrati = [t for t in lista_turni if t.get("settimana") == settimana_filtro]
+
+        # Mappa dei cani e chi li porta
+        report_cani = {cane: [] for cane in st.session_state.cani}
+
+        for t in turni_filtrati:
+            volontario = t.get("volontario")
+            giorno = t.get("giorno")
+            fascia = t.get("fascia")
+            for cane in t.get("cani_fatti", []):
+                if cane in report_cani:
+                    report_cani[cane].append(f"{giorno} {fascia} ({volontario})")
+
+        for cane, dettagli in report_cani.items():
+            if dettagli:
+                st.success(f"🐾 **{cane}**: gestito {len(dettagli)} volte")
+                for d in dettagli:
+                    st.markdown(f"- {d}")
+            else:
+                st.warning(f"⚠️ **{cane}**: Nessun turno assegnato in questa settimana!")
+            st.markdown("---")
+
+
+# ==========================================
+# 4. GESTIONE CANI
+# ==========================================
+elif menu == "⚙️ Gestione Cani":
+    st.header("⚙️ Gestione Elenco Cani del Rifugio")
+
+    st.write("Aggiungi o rimuovi i cani presenti in struttura dall'elenco ufficiale.")
+
+    col_ins, col_del = st.columns(2)
+
+    with col_ins:
+        st.subheader("Aggiungi un nuovo cane")
+        nuovo_cane = st.text_input("Nome del cane:")
+        if st.button("➕ Aggiungi Cane"):
+            if nuovo_cane.strip():
+                nome_pulito = nuovo_cane.strip().capitalize()
+                if nome_pulito not in st.session_state.cani:
+                    st.session_state.cani.append(nome_pulito)
+                    salva_file_json(DB_CANI, st.session_state.cani)
+                    st.success(f"Cane '{nome_pulito}' aggiunto con successo!")
+                    st.rerun()
+                else:
+                    st.warning("Questo cane è già presente nell'elenco.")
+            else:
+                st.error("Inserisci un nome valido.")
+
+    with col_del:
+        st.subheader("Rimuovi un cane")
+        if st.session_state.cani:
+            cane_da_rimuovere = st.selectbox("Seleziona il cane da eliminare:", sorted(st.session_state.cani))
+            if st.button("🗑️ Rimuovi Cane"):
+                st.session_state.cani.remove(cane_da_rimuovere)
+                salva_file_json(DB_CANI, st.session_state.cani)
+                st.success(f"Cane '{cane_da_rimuovere}' rimosso con successo!")
+                st.rerun()
+        else:
+            st.info("Nessun cane in elenco.")
+
+    st.markdown("---")
+    st.subheader("📋 Elenco attuale dei cani registrati:")
+    st.write(", ".join(sorted(st.session_state.cani)))
