@@ -414,8 +414,7 @@ elif menu == "👀 Panoramica":
             if not turni_giorno and (st.session_state.get("filtro_cane_side", "Tutti i cani") != "Tutti i cani" or st.session_state.get("filtro_vol_side", "Tutti i volontari") != "Tutti i volontari"):
                 continue
                 
-            st.markdown(## 📌 {giorno})
-
+            st.markdown(f"## 📌 {giorno}")
             col_m, col_p = st.columns(2)
 
             def mostra_fascia_calendario(fascia_nome, col_container):
