@@ -8,12 +8,12 @@ st.set_page_config(
     page_title="Gestione Turni Canile", page_icon="icona.jpg", layout="wide"
 )
 
-# Tag aggiornati con versione forzata (?v=5) per aggirare la cache testarda di iOS
+# Tag aggiornati con versione forzata (?v=7) per aggirare la cache testarda di iOS
 st.markdown(
     """
     <head>
         <link rel="manifest" href="manifest.json">
-        <link rel="apple-touch-icon" href="https://github.com/lallag/turni-canile/blob/main/icona.jpg?raw=true&v=5">
+        <link rel="apple-touch-icon" href="https://github.com/lallag/turni-canile/blob/main/icona.jpg?raw=true&v=7">
     </head>
 """,
     unsafe_allow_html=True,
@@ -220,17 +220,28 @@ if menu == "📅 Inserisci":
 
     volontari_registrati = get_lista_volontari()
 
+    # --- SEZIONE NOME FUORI DAL FORM PER ESSERE LIBERA E REATTIVA ---
+    st.markdown("### 👤 1. Il tuo Nome")
+    scelte_volontario = ["-- Seleziona il tuo nome --"] + volontari_registrati + ["➕ Altro / Nuovo volontario"]
+    
+    # Usiamo un widget interattivo reattivo fuori dal form
+    scelta_volontario_dropdown = st.selectbox("Seleziona o inserisci il tuo Nome e Cognome:", scelte_volontario, key="selettore_nome_principale")
+    
+    volontario_finale = ""
+    if scelta_volontario_dropdown == "➕ Altro / Nuovo volontario":
+        volontario_nuovo_input = st.text_input("Scrivi qui il tuo Nome e Cognome:", key="input_nuovo_volontario_libero")
+        volontario_finale = volontario_nuovo_input.strip()
+    elif scelta_volontario_dropdown != "-- Seleziona il tuo nome --":
+        volontario_finale = scelta_volontario_dropdown
+
+    st.markdown("---")
+
+    # --- FORM PER IL RESTO DEL TURNO ---
     with st.form("form_turno"):
+        st.markdown("### 🕒 2. Dettagli Turno e Cani")
         col1, col2 = st.columns(2)
 
         with col1:
-            scelte_volontario = ["-- Seleziona il tuo nome --"] + volontari_registrati + ["➕ Altro / Nuovo volontario"]
-            scelta_volontario_dropdown = st.selectbox("Tuo Nome e Cognome:", scelte_volontario)
-            
-            volontario_nuovo_input = ""
-            if scelta_volontario_dropdown == "➕ Altro / Nuovo volontario":
-                volontario_nuovo_input = st.text_input("Scrivi il tuo Nome e Cognome:")
-
             giorno = st.selectbox(
                 "Giorno della settimana:",
                 [
@@ -270,10 +281,8 @@ if menu == "📅 Inserisci":
 
             note = st.text_area("Note aggiuntive (opzionale):")
 
-        st.subheader("Gestione Cani per questo turno")
-
-        nome_temp_controllo = scelta_volontario_dropdown if scelta_volontario_dropdown != "➕ Altro / Nuovo volontario" else volontario_nuovo_input
-        cani_suggeriti = get_cani_frequenti_volontario(nome_temp_controllo)
+        # Recuperiamo i suggerimenti in base al nome già digitato/selezionato sopra
+        cani_suggeriti = get_cani_frequenti_volontario(volontario_finale)
 
         col_cani_op1, col_cani_op2 = st.columns([1, 1])
         with col_cani_op1:
@@ -303,13 +312,6 @@ if menu == "📅 Inserisci":
         submit_button = st.form_submit_button(label="Registra Turno 🚀")
 
         if submit_button:
-            if scelta_volontario_dropdown == "➕ Altro / Nuovo volontario":
-                volontario = volontario_nuovo_input.strip()
-            elif scelta_volontario_dropdown != "-- Seleziona il tuo nome --":
-                volontario = scelta_volontario_dropdown
-            else:
-                volontario = ""
-
             ora_limite_divisione = time(14, 0)
             errore_fascia = False
             
@@ -321,14 +323,14 @@ if menu == "📅 Inserisci":
                 errore_fascia = True
 
             if not errore_fascia:
-                if volontario == "":
-                    st.warning("Per favore, seleziona o inserisci il tuo nome prima di registrare il turno.")
+                if not volontario_finale:
+                    st.warning("⚠️ Per favore, seleziona il tuo nome dal menu a tendina o scrivi il tuo nome e cognome nell'apposita casella in alto prima di registrare.")
                 elif not cani_fatti:
                     st.error("❌ **Errore:** Devi selezionare almeno un cane per poter registrare il turno!")
                 else:
                     lista_turni = carica_file_json(DB_TURNI, [])
                     
-                    volontario_normalizzato = volontario.strip().lower()
+                    volontario_normalizzato = volontario_finale.strip().lower()
                     doppione_trovato = any(
                         t.get("volontario", "").strip().lower() == volontario_normalizzato and
                         t.get("settimana") == settimana_scelta and
@@ -338,12 +340,12 @@ if menu == "📅 Inserisci":
                     )
 
                     if doppione_trovato:
-                        st.error(f"⚠️ **Attenzione:** {volontario} risulta già registrato per {giorno} ({fascia}) in questa settimana!")
+                        st.error(f"⚠️ **Attenzione:** {volontario_finale} risulta già registrato per {giorno} ({fascia}) in questa settimana!")
                     else:
                         nuovo_turno = {
                             "id": str(datetime.now().timestamp()),
                             "settimana": settimana_scelta,
-                            "volontario": volontario,
+                            "volontario": volontario_finale,
                             "giorno": giorno,
                             "fascia": fascia,
                             "orario": orario,
@@ -352,7 +354,7 @@ if menu == "📅 Inserisci":
                         }
                         lista_turni.append(nuovo_turno)
                         salva_file_json(DB_TURNI, lista_turni)
-                        st.success(f"Turno registrato con successo per {volontario}!")
+                        st.success(f"Turno registrato con successo per {volontario_finale}!")
 
 elif menu == "👀 Panoramica":
     st.header("Gestione Turni e Copertura")
@@ -634,7 +636,7 @@ elif menu == "📚 Archivio":
     )
 
     if not settimane_disponibili:
-        st.info("Non ci sono ancora settimane passate archiviate.")
+        st.info("Nessun dato presente nell'archivio storico.")
     else:
         storico_scelto = st.selectbox(
             "Seleziona la settimana dall'archivio:", settimane_disponibili
