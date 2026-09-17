@@ -386,9 +386,6 @@ elif menu == "👀 Panoramica":
     ]
 
     # Applicazione dei filtri provenienti dalla Sidebar
-    if 'filtro_cane_side' in locals() or 'filtro_cane_side' in globals():
-        pass # gestito dai valori in session_state/sidebar
-    
     if st.session_state.get("filtro_cane_side", "Tutti i cani") != "Tutti i cani":
         cane_scelto = st.session_state["filtro_cane_side"]
         turni_filtrati = [t for t in turni_filtrati if cane_scelto in t.get("cani_fatti", [])]
@@ -417,18 +414,7 @@ elif menu == "👀 Panoramica":
             if not turni_giorno and (st.session_state.get("filtro_cane_side", "Tutti i cani") != "Tutti i cani" or st.session_state.get("filtro_vol_side", "Tutti i volontari") != "Tutti i volontari"):
                 continue
                 
-            st.markdown(f"## 📌 {giorno}")
-            
-            # --- PULSANTE COPIA PER WHATSAPP ---
-            testo_wa = f"*Turni Canile - {giorno} ({settimana_vista})*\n"
-            ha_turni_wa = False
-            for t_wa in turni_giorno:
-                ha_turni_wa = True
-                c_str = ", ".join(t_wa['cani_fatti'])
-                testo_wa += f"• {t_wa['volontario']} ({t_wa['fascia']} - {t_wa['orario']}) 🐾 [{c_str}]\n"
-            
-            if ha_turni_wa:
-                st.code(testo_wa, language=None)
+            st.markdown(## 📌 {giorno})
 
             col_m, col_p = st.columns(2)
 
