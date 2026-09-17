@@ -75,49 +75,6 @@ is_weekend_reale = (giorno_settimana > 4) or (
 )
 is_weekend_o_venerdi_sera = is_weekend_reale
 
-# Area Riservata Amministratrici nella Sidebar
-st.sidebar.markdown("---")
-st.sidebar.subheader("🔒 Area Amministratrici")
-
-ADMIN_PASSWORD_CORRETTA = "canile2026"
-
-if not st.session_state.is_admin:
-    with st.sidebar.form("form_login_admin"):
-        pwd_input = st.text_input("Password Admin:", type="password")
-        btn_login = st.form_submit_button("Sblocca Admin")
-        if btn_login:
-            if pwd_input == ADMIN_PASSWORD_CORRETTA:
-                st.session_state.is_admin = True
-                st.success("Accesso effettuato!")
-                st.rerun()
-            else:
-                st.error("Password errata.")
-else:
-    st.sidebar.success("🔓 Modulo Admin Attivo")
-
-    # --- SIMULATORE PER ANTEPRIMA (VISIBILE SOLO AGLI ADMIN) ---
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("🧪 Simulatore Anteprima (Admin)")
-    scelta_simulazione = st.sidebar.selectbox(
-        "Forza visualizzazione:",
-        [
-            "📅 Automatico (Tempo Reale)",
-            "⚠️ Simula Venerdì Sera / Weekend",
-            "🟢 Simula Lunedì - Giovedì",
-        ],
-    )
-
-    if scelta_simulazione == "⚠️ Simula Venerdì Sera / Weekend":
-        is_weekend_o_venerdi_sera = True
-    elif scelta_simulazione == "🟢 Simula Lunedì - Giovedì":
-        is_weekend_o_venerdi_sera = False
-    else:
-        is_weekend_o_venerdi_sera = is_weekend_reale
-
-    if st.sidebar.button("🔒 Esci da Modalità Admin"):
-        st.session_state.is_admin = False
-        st.rerun()
-
 # --- MENU PRINCIPALE IN ALTO (A MISURA DI DITO SU MOBILE) ---
 opzioni_menu = [
     "📅 Inserisci",
@@ -127,6 +84,49 @@ opzioni_menu = [
     "📚 Archivio",
 ]
 menu = st.pills("Seleziona sezione:", opzioni_menu, default=opzioni_menu[0])
+
+# --- AREA AMMINISTRATRICI IN PAGINA PRINCIPALE ---
+ADMIN_PASSWORD_CORRETTA = "canile2026"
+
+with st.expander("🔒 Area Riservata Amministratrici / Simulatore", expanded=False):
+    if not st.session_state.is_admin:
+        with st.form("form_login_admin_main"):
+            pwd_input = st.text_input("Password Admin:", type="password")
+            btn_login = st.form_submit_button("Sblocca Admin")
+            if btn_login:
+                if pwd_input == ADMIN_PASSWORD_CORRETTA:
+                    st.session_state.is_admin = True
+                    st.success("Accesso effettuato!")
+                    st.rerun()
+                else:
+                    st.error("Password errata.")
+    else:
+        st.success("🔓 Modulo Admin Attivo")
+
+        # --- SIMULATORE PER ANTEPRIMA ---
+        st.markdown("---")
+        st.subheader("🧪 Simulatore Anteprima")
+        scelta_simulazione = st.selectbox(
+            "Forza visualizzazione:",
+            [
+                "📅 Automatico (Tempo Reale)",
+                "⚠️ Simula Venerdì Sera / Weekend",
+                "🟢 Simula Lunedì - Giovedì",
+            ],
+            key="selettore_simulazione_main",
+        )
+
+        if scelta_simulazione == "⚠️ Simula Venerdì Sera / Weekend":
+            is_weekend_o_venerdi_sera = True
+        elif scelta_simulazione == "🟢 Simula Lunedì - Giovedì":
+            is_weekend_o_venerdi_sera = False
+        else:
+            is_weekend_o_venerdi_sera = is_weekend_reale
+
+        if st.button("🔒 Esci da Modalità Admin"):
+            st.session_state.is_admin = False
+            st.rerun()
+
 st.markdown("---")
 
 
@@ -375,9 +375,9 @@ elif menu == "🐶 Cani":
 
     if not st.session_state.is_admin:
         st.warning(
-            "🔒 Questa sezione è protetta. Inserisci la password da"
-            " amministratrice nella barra laterale a sinistra per aggiungere"
-            " o rimuovere i cani."
+            "🔒 Questa sezione è protetta. Apri il menu 'Area Riservata"
+            " Amministratrici' in alto per inserire la password e aggiungere o"
+            " rimuovere i cani."
         )
         st.subheader("Lista attuale dei cani in canile:")
         for dog in st.session_state.cani:
