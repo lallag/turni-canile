@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 st.set_page_config(
-    page_title="Gestione Turni Canile", page_icon="icona.jpg", layout="wide"
+    page_title="Gestione Turni Canile", page_icon="🐕", layout="wide"
 )
 
 # Tag aggiornati con versione forzata (?v=2) per aggirare la cache testarda di iOS
