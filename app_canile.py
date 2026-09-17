@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta, time
 import json
 import os
+import urllib.request
+import urllib.parse
 import pandas as pd
 import streamlit as st
 
@@ -38,6 +40,36 @@ def salva_file_json(filename, data):
             json.dump(data, f, indent=4)
     except Exception as e:
         pass
+
+
+# --- FUNZIONE RADAR METEO INTELLIGENTE ---
+def get_meteo_canile():
+    try:
+        # Usiamo Sondrio come località predefinita per il canile
+        url = "https://wttr.in/Sondrio?format=j1"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=3) as response:
+            data = json.loads(response.read().decode())
+            current = data['current_condition'][0]
+            temp_C = int(current['temp_C'])
+            desc_en = current['weatherDesc'][0]['value']
+            
+            # Traduzione base delle condizioni principali in italiano
+            traduzioni = {
+                "Sunny": "Soleggiato ☀️",
+                "Clear": "Sereno ☀️",
+                "Partly cloudy": "Parzialmente nuvoloso ⛅",
+                "Cloudy": "Nuvoloso ☁️",
+                "Overcast": "Coperto ☁️",
+                "Light rain": "Pioggia leggera 🌧️",
+                "Heavy rain": "Pioggia forte 🌧️",
+                "Thunderstorm": "Temporale ⚡",
+                "Snow": "Neve ❄️"
+            }
+            desc_it = traduzioni.get(desc_en, desc_en)
+            return temp_C, desc_it
+    except Exception:
+        return None, None
 
 
 # Inizializzazione stato
@@ -150,6 +182,33 @@ with st.sidebar:
 
 # --- INTESTAZIONE PRINCIPALE ---
 st.title("🐾 Turni Canile")
+
+# --- WIDGET METEO INTELLIGENTE ---
+temp, condizione = get_meteo_canile()
+
+if temp is not None:
+    consiglio = ""
+    tipo_box = "info"
+    
+    if temp >= 28:
+        tipo_box = "error"
+        consiglio = "🔥 **Allerta Caldo:** Temperature elevate! Ricordate di portare molta acqua fresca per i cani, evitare le ore centrali della giornata per le passeggiate lunghe e preferire i percorsi ombreggiati."
+    elif temp <= 5:
+        tipo_box = "warning"
+        consiglio = "❄️ **Attenzione Freddo:** Temperature rigide. Controllate le coperte nei recinti e valutate copertine protettive per i cani più anziani o a pelo corto."
+    elif "pioggia" in condizione.lower() or "temporale" in condizione.lower():
+        tipo_box = "warning"
+        consiglio = "🌧️ **Maltempo in arrivo:** Portate impermeabili o asciugamani extra in canile per asciugare i cani al rientro."
+    else:
+        tipo_box = "success"
+        consiglio = "🌿 **Condizioni ideali:** Il tempo è perfetto per una splendida passeggiata con i cani!"
+
+    if tipo_box == "error":
+        st.error(f"🌡️ **Meteo a Sondrio:** {temp}°C - {condizione}\n\n{consiglio}")
+    elif tipo_box == "warning":
+        st.warning(f"🌡️ **Meteo a Sondrio:** {temp}°C - {condizione}\n\n{consiglio}")
+    else:
+        st.info(f"🌡️ **Meteo a Sondrio:** {temp}°C - {condizione}\n\n{consiglio}")
 
 # --- MENU PRINCIPALE IN ALTO ---
 opzioni_menu = [
@@ -415,6 +474,7 @@ elif menu == "👀 Panoramica":
                 continue
                 
             st.markdown(f"## 📌 {giorno}")
+
             col_m, col_p = st.columns(2)
 
             def mostra_fascia_calendario(fascia_nome, col_container):
