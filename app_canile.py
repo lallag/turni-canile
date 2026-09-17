@@ -1,14 +1,43 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
+import json
+import urllib.request
+import urllib.error
 
 st.set_page_config(page_title="Gestione Turni Canile", page_icon="🐾", layout="wide")
 
+# --- GESTIONE DATI PERSISTENTI TRAMITE GITHUB ---
+# Usiamo un file JSON nel repository per condividere i turni tra tutti i dispositivi a costo zero.
+DB_FILE = "turni.json"
+
+def carica_turni_da_github():
+    if 'turni' in st.session_state and st.session_state.turni:
+        return st.session_state.turni
+    try:
+        with open(DB_FILE, "r") as f:
+            data = json.load(f)
+            st.session_state.turni = data
+            return data
+    except Exception:
+        st.session_state.turni = []
+        return []
+
+def salva_turni_su_github(turni):
+    st.session_state.turni = turni
+    try:
+        with open(DB_FILE, "w") as f:
+            json.dump(turni, f, indent=4)
+    except Exception as e:
+        # Se siamo su Streamlit Cloud in sola lettura locale, i dati restano comunque in sessione
+        pass
+
+# Inizializzazione stato
 if 'cani' not in st.session_state:
     st.session_state.cani = ["Fido", "Luna", "Rocky", "Maya", "Thor", "Nina", "Zoe", "Leo"]
 
 if 'turni' not in st.session_state:
-    st.session_state.turni = []
+    st.session_state.turni = carica_turni_da_github()
 
 if 'is_admin' not in st.session_state:
     st.session_state.is_admin = False
@@ -24,7 +53,6 @@ is_weekend_o_venerdi_sera = (giorno_settimana > 4) or (giorno_settimana == 4 and
 if is_weekend_o_venerdi_sera:
     st.warning("⚠️ **Promemoria Canile:** È iniziato il fine settimana! Ricordati di selezionare la **'Prossima Settimana'** qui sotto per inserire i tuoi turni per la settimana che sta per arrivare.")
 
-# Menu di navigazione aggiornato nell'ordine richiesto
 opzioni_menu = ["📅 Inserisci / Modifica Turno", "👀 Visualizza Panoramica Settimanale", "🐶 Gestione Cani", "📚 Archivio Storico"]
 menu = st.sidebar.selectbox("Menu", opzioni_menu)
 
@@ -32,7 +60,7 @@ menu = st.sidebar.selectbox("Menu", opzioni_menu)
 st.sidebar.markdown("---")
 st.sidebar.subheader("🔒 Area Amministratrici")
 
-ADMIN_PASSWORD_CORRETTA = "canile2026" # Puoi cambiarla qui
+ADMIN_PASSWORD_CORRETTA = "canile2026"
 
 if not st.session_state.is_admin:
     with st.sidebar.form("form_login_admin"):
@@ -104,6 +132,7 @@ if menu == "📅 Inserisci / Modifica Turno":
             if volontario.strip() == "":
                 st.warning("Per favore, inserisci il tuo nome prima di registrare il turno.")
             else:
+                lista_corrente = carica_turni_da_github()
                 nuovo_turno = {
                     "id": str(datetime.now().timestamp()),
                     "settimana": settimana_scelta,
@@ -114,11 +143,14 @@ if menu == "📅 Inserisci / Modifica Turno":
                     "cani_fatti": cani_fatti,
                     "note": note
                 }
-                st.session_state.turni.append(nuovo_turno)
+                lista_corrente.append(nuovo_turno)
+                salva_turni_su_github(lista_corrente)
                 st.success(f"Turno registrato con successo per {volontario}!")
 
 elif menu == "👀 Visualizza Panoramica Settimanale":
     st.header("Gestione Turni e Copertura")
+    
+    turni_attuali = carica_turni_da_github()
     
     if is_weekend_o_venerdi_sera:
         scelte_visualizzazione = [label_corr, label_pros]
@@ -131,7 +163,7 @@ elif menu == "👀 Visualizza Panoramica Settimanale":
         horizontal=True
     )
     
-    turni_filtrati = [t for t in st.session_state.turni if t.get('settimana') == settimana_vista]
+    turni_filtrati = [t for t in turni_attuali if t.get('settimana') == settimana_vista]
     
     if not turni_filtrati:
         st.info("Nessun turno inserito al momento per questo periodo.")
@@ -165,7 +197,8 @@ elif menu == "👀 Visualizza Panoramica Settimanale":
                         
                         if st.session_state.is_admin:
                             if st.button(f"🗑️ Elimina ({t['volontario']})", key=f"del_{giorno}_{fascia_nome}_{t['id']}"):
-                                st.session_state.turni = [item for item in st.session_state.turni if item['id'] != t['id']]
+                                lista_aggiornata = [item for item in carica_turni_da_github() if item['id'] != t['id']]
+                                salva_turni_su_github(lista_aggiornata)
                                 st.success("Turno eliminato!")
                                 st.rerun()
                     
@@ -224,10 +257,11 @@ elif menu == "📚 Archivio Storico":
     st.header("📚 Archivio Storico delle Settimane Passate")
     st.markdown("Qui puoi consultare lo storico di tutte le settimane registrate in precedenza.")
     
-    tutte_le_settimane = sorted(list(set(t.get('settimana') for t in st.session_state.turni)))
+    tutti_i_turni = carica_turni_da_github()
+    tutte_le_settimane = sorted(list(set(t.get('settimana') for t in tutti_i_turni)))
     settimane_storiche = [s for s in tutte_le_settimane if s != label_corr and s != label_pros]
     
-    if not settimane_storiche and not st.session_state.turni:
+    if not settimane_storiche and not tutti_i_turni:
         st.info("Nessun dato presente nell'archivio storico.")
     else:
         settimane_disponibili = settimane_storiche if settimane_storiche else tutte_le_settimane
@@ -237,7 +271,7 @@ elif menu == "📚 Archivio Storico":
         else:
             storico_scelto = st.selectbox("Seleziona la settimana dall'archivio:", settimane_disponibili)
             
-            turni_storico = [t for t in st.session_state.turni if t.get('settimana') == storico_scelto]
+            turni_storico = [t for t in tutti_i_turni if t.get('settimana') == storico_scelto]
             
             giorni_settimana = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
             
@@ -265,7 +299,8 @@ elif menu == "📚 Archivio Storico":
                             
                             if st.session_state.is_admin:
                                 if st.button(f"🗑️ Elimina ({t['volontario']})", key=f"del_storico_{giorno}_{fascia_nome}_{t['id']}"):
-                                    st.session_state.turni = [item for item in st.session_state.turni if item['id'] != t['id']]
+                                    lista_aggiornata = [item for item in carica_turni_da_github() if item['id'] != t['id']]
+                                    salva_turni_su_github(lista_aggiornata)
                                     st.success("Turno eliminato!")
                                     st.rerun()
 
