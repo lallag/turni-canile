@@ -6,8 +6,10 @@ import pandas as pd
 import streamlit as st
 
 st.set_page_config(
-    page_title="Gestione Turni Canile", page_icon="🐾", layout="wide"
+    page_title="Gestione Turni Canile", page_icon="icona.jpg", layout="wide"
 )
+
+# Configurazione ottimizzata per l'icona personalizzata su iOS e Android
 st.markdown(
     """
     <head>
@@ -390,7 +392,6 @@ elif menu == "📊 Statistiche Cani":
 
   turni_stat = [t for t in tutti_i_turni if t.get("settimana") == settimana_stat]
 
-  # --- CALCOLO CORRETTO: UN'USCITA PER FASCIA ORARIA (Giorno + Mattina/Pomeriggio) ---
   uscite_per_cane = {cane: 0 for cane in st.session_state.cani}
 
   giorni_settimana = [
