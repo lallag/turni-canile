@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 import json
 import urllib.error
 import urllib.request
@@ -188,9 +188,16 @@ if menu == "📅 Inserisci":
             fascia = st.selectbox("Fascia oraria:", ["Mattina", "Pomeriggio"])
 
         with col2:
-            orario = st.text_input(
-                "Orario di presenza (es. 09:00 - 12:00):", "09:00 - 12:00"
-            )
+            st.markdown("**Seleziona Orario:**")
+            col_ora1, col_ora2 = st.columns(2)
+            with col_ora1:
+                ora_inizio = st.time_input("Da:", value=time(9, 0))
+            with col_ora2:
+                ora_fine = st.time_input("A:", value=time(12, 0))
+            
+            # Unione automatica in formato stringa sicura
+            orario = f"{ora_inizio.strftime('%H:%M')} - {ora_fine.strftime('%H:%M')}"
+
             note = st.text_area("Note aggiuntive (opzionale):")
 
         st.subheader("Gestione Cani per questo turno")
@@ -212,24 +219,36 @@ if menu == "📅 Inserisci":
 
         if submit_button:
             if volontario.strip() == "":
-                st.warning(
-                    "Per favore, inserisci il tuo nome prima di registrare il turno."
-                )
+                st.warning("Per favore, inserisci il tuo nome prima di registrare il turno.")
             else:
                 lista_turni = carica_file_json(DB_TURNI, [])
-                nuovo_turno = {
-                    "id": str(datetime.now().timestamp()),
-                    "settimana": settimana_scelta,
-                    "volontario": volontario.strip(),
-                    "giorno": giorno,
-                    "fascia": fascia,
-                    "orario": orario,
-                    "cani_fatti": cani_fatti,
-                    "note": note,
-                }
-                lista_turni.append(nuovo_turno)
-                salva_file_json(DB_TURNI, lista_turni)
-                st.success(f"Turno registrato con successo per {volontario}!")
+                
+                # Controllo anti-doppione
+                volontario_normalizzato = volontario.strip().lower()
+                doppione_trovato = any(
+                    t.get("volontario", "").strip().lower() == volontario_normalizzato and
+                    t.get("settimana") == settimana_scelta and
+                    t.get("giorno") == giorno and
+                    t.get("fascia") == fascia
+                    for t in lista_turni
+                )
+
+                if doppione_trovato:
+                    st.error(f"⚠️ **Attenzione:** {volontario.strip()} risulta già registrato per {giorno} ({fascia}) in questa settimana! Elimina o modifica il turno esistente se vuoi cambiarlo.")
+                else:
+                    nuovo_turno = {
+                        "id": str(datetime.now().timestamp()),
+                        "settimana": settimana_scelta,
+                        "volontario": volontario.strip(),
+                        "giorno": giorno,
+                        "fascia": fascia,
+                        "orario": orario,
+                        "cani_fatti": cani_fatti,
+                        "note": note,
+                    }
+                    lista_turni.append(nuovo_turno)
+                    salva_file_json(DB_TURNI, lista_turni)
+                    st.success(f"Turno registrato con successo per {volontario}!")
 
 elif menu == "👀 Panoramica":
     st.header("Gestione Turni e Copertura")
@@ -325,8 +344,16 @@ elif menu == "👀 Panoramica":
                             if st.session_state.get(f"editing_{t['id']}", False):
                                 with st.form(key=f"form_mod_{t['id']}"):
                                     st.subheader(f"Modifica Turno di {t['volontario']}")
-                                    nuovo_orario = st.text_input("Orario:", value=t["orario"])
+                                    
+                                    col_m1, col_m2 = st.columns(2)
+                                    with col_m1:
+                                        m_inizio = st.time_input("Ora Inizio:", value=time(9, 0), key=f"min_{t['id']}")
+                                    with col_m2:
+                                        m_fine = st.time_input("Ora Fine:", value=time(12, 0), key=f"mfin_{t['id']}")
+                                    
+                                    nuovo_orario = f"{m_inizio.strftime('%H:%M')} - {m_fine.strftime('%H:%M')}"
                                     nuove_note = st.text_area("Note:", value=t.get("note", ""))
+                                    
                                     nuovi_cani = st.multiselect(
                                         "Cani gestiti:",
                                         st.session_state.cani,
@@ -621,8 +648,16 @@ elif menu == "📚 Archivio":
                                 if st.session_state.get(f"editing_{t['id']}", False):
                                     with st.form(key=f"form_mod_storico_{t['id']}"):
                                         st.subheader(f"Modifica Turno di {t['volontario']}")
-                                        nuovo_orario = st.text_input("Orario:", value=t["orario"])
+                                        
+                                        col_ms1, col_ms2 = st.columns(2)
+                                        with col_ms1:
+                                            ms_inizio = st.time_input("Ora Inizio:", value=time(9, 0), key=f"msin_{t['id']}")
+                                        with col_ms2:
+                                            ms_fine = st.time_input("Ora Fine:", value=time(12, 0), key=f"msfin_{t['id']}")
+                                        
+                                        nuovo_orario = f"{ms_inizio.strftime('%H:%M')} - {ms_fine.strftime('%H:%M')}"
                                         nuove_note = st.text_area("Note:", value=t.get("note", ""))
+                                        
                                         nuovi_cani = st.multiselect(
                                             "Cani gestiti:",
                                             st.session_state.cani,
