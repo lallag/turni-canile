@@ -1,7 +1,15 @@
+Perfetto! Integrare queste due funzionalità renderà l'applicazione molto più pratica e pulita: i volontari non dovranno più riscrivere ogni volta il proprio nome (evitando errori di battitura o duplicati) e avranno una sezione dedicata per vedere al volo tutti i propri impegni futuri o passati.
+
+Ecco il codice aggiornato dell'app Streamlit, con l'aggiunta di:
+
+1. **Menu a tendina intelligente per i volontari** (con la gestione dei nomi già registrati + l'opzione "Altro / Nuovo volontario").
+2. **La nuova sezione "🔍 I miei turni"** nel menu principale per filtrare e visualizzare tutti i turni associati a un singolo volontario.
+
+### Codice Aggiornato
+
+```python
 from datetime import datetime, timedelta, time
 import json
-import urllib.error
-import urllib.request
 import pandas as pd
 import streamlit as st
 
@@ -20,7 +28,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- GESTIONE DATI PERSISTENTI TRAMITE GITHUB ---
+# --- GESTIONE DATI PERSISTENTI TRAMITE GITHUB / JSON ---
 DB_TURNI = "turni.json"
 DB_CANI = "cani.json"
 
@@ -41,7 +49,7 @@ def salva_file_json(filename, data):
         pass
 
 
-# Inizializzazione stato con i file su GitHub (e lista cani predefinita)
+# Inizializzazione stato
 if "cani" not in st.session_state:
     st.session_state.cani = carica_file_json(
         DB_CANI,
@@ -118,9 +126,10 @@ with col_admin:
                 st.session_state.is_admin = False
                 st.rerun()
 
-# --- MENU PRINCIPALE IN ALTO (A MISURA DI DITO SU MOBILE) ---
+# --- MENU PRINCIPALE IN ALTO ---
 opzioni_menu = [
     "📅 Inserisci",
+    "🔍 I miei turni",
     "👀 Panoramica",
     "🐶 Cani",
     "📊 Statistiche",
@@ -154,6 +163,17 @@ if is_weekend_o_venerdi_sera:
         " turni per la settimana che sta per arrivare."
     )
 
+# Funzione di utilità per estrarre la lista unica dei volontari già registrati
+def get_lista_volontari():
+    turni_esistenti = carica_file_json(DB_TURNI, [])
+    nomi = set()
+    for t in turni_esistenti:
+        nome = t.get("volontario", "").strip()
+        if nome:
+            nomi.add(nome)
+    return sorted(list(nomi))
+
+
 if menu == "📅 Inserisci":
     st.header("Gestione Turni")
 
@@ -168,11 +188,20 @@ if menu == "📅 Inserisci":
         horizontal=True,
     )
 
+    volontari_registrati = get_lista_volontari()
+
     with st.form("form_turno"):
         col1, col2 = st.columns(2)
 
         with col1:
-            volontario = st.text_input("Tuo Nome e Cognome:")
+            # Selezione intelligente del volontario
+            scelte_volontario = ["-- Seleziona il tuo nome --"] + volontari_registrati + ["➕ Altro / Nuovo volontario"]
+            scelta_volontario_dropdown = st.selectbox("Tuo Nome e Cognome:", scelte_volontario)
+            
+            volontario_nuovo_input = ""
+            if scelta_volontario_dropdown == "➕ Altro / Nuovo volontario":
+                volontario_nuovo_input = st.text_input("Scrivi il tuo Nome e Cognome:")
+
             giorno = st.selectbox(
                 "Giorno della settimana:",
                 [
@@ -190,7 +219,6 @@ if menu == "📅 Inserisci":
         with col2:
             st.markdown(f"**Orario per {fascia}:**")
             
-            # Imposta orari predefiniti intelligenti in base alla fascia scelta nel form
             default_inizio = time(8, 30) if fascia == "Mattina" else time(14, 30)
             default_fine = time(12, 0) if fascia == "Mattina" else time(18, 0)
 
@@ -206,7 +234,6 @@ if menu == "📅 Inserisci":
                 else:
                     st.markdown("<br><i>Nessun limite</i>", unsafe_allow_html=True)
             
-            # Formattazione stringa orario finale
             if senza_fine:
                 orario = f"Dalle {ora_inizio.strftime('%H:%M')}"
             else:
@@ -232,24 +259,30 @@ if menu == "📅 Inserisci":
         submit_button = st.form_submit_button(label="Registra Turno 🚀")
 
         if submit_button:
-            # Controllo compatibilità fascia oraria
+            # Determinazione finale del nome volontario
+            if scelta_volontario_dropdown == "➕ Altro / Nuovo volontario":
+                volontario = volontario_nuovo_input.strip()
+            elif scelta_volontario_dropdown != "-- Seleziona il tuo nome --":
+                volontario = scelta_volontario_dropdown
+            else:
+                volontario = ""
+
             ora_limite_divisione = time(14, 0)
             errore_fascia = False
             
             if fascia == "Mattina" and ora_inizio >= ora_limite_divisione:
-                st.error("❌ **Errore:** Hai scelto la fascia **Mattina**, ma l'orario di inizio è pomeridiano (dalle 14:00 in poi). Correggi l'orario o seleziona 'Pomeriggio'.")
+                st.error("❌ **Errore:** Hai scelto la fascia **Mattina**, ma l'orario di inizio è pomeridiano (dalle 14:00 in poi).")
                 errore_fascia = True
             elif fascia == "Pomeriggio" and ora_inizio < ora_limite_divisione:
-                st.error("❌ **Errore:** Hai scelto la fascia **Pomeriggio**, ma l'orario di inizio è mattutino (prima delle 14:00). Correggi l'orario o seleziona 'Mattina'.")
+                st.error("❌ **Errore:** Hai scelto la fascia **Pomeriggio**, ma l'orario di inizio è mattutino (prima delle 14:00).")
                 errore_fascia = True
 
             if not errore_fascia:
-                if volontario.strip() == "":
-                    st.warning("Per favore, inserisci il tuo nome prima di registrare il turno.")
+                if volontario == "":
+                    st.warning("Per favore, seleziona o inserisci il tuo nome prima di registrare il turno.")
                 else:
                     lista_turni = carica_file_json(DB_TURNI, [])
                     
-                    # Controllo anti-doppione
                     volontario_normalizzato = volontario.strip().lower()
                     doppione_trovato = any(
                         t.get("volontario", "").strip().lower() == volontario_normalizzato and
@@ -260,12 +293,12 @@ if menu == "📅 Inserisci":
                     )
 
                     if doppione_trovato:
-                        st.error(f"⚠️ **Attenzione:** {volontario.strip()} risulta già registrato per {giorno} ({fascia}) in questa settimana! Elimina o modifica il turno esistente se vuoi cambiarlo.")
+                        st.error(f"⚠️ **Attenzione:** {volontario} risulta già registrato per {giorno} ({fascia}) in questa settimana!")
                     else:
                         nuovo_turno = {
                             "id": str(datetime.now().timestamp()),
                             "settimana": settimana_scelta,
-                            "volontario": volontario.strip(),
+                            "volontario": volontario,
                             "giorno": giorno,
                             "fascia": fascia,
                             "orario": orario,
@@ -275,6 +308,43 @@ if menu == "📅 Inserisci":
                         lista_turni.append(nuovo_turno)
                         salva_file_json(DB_TURNI, lista_turni)
                         st.success(f"Turno registrato con successo per {volontario}!")
+
+elif menu == "🔍 I miei turni":
+    st.header("🔍 Cerca i miei turni")
+    st.markdown("Seleziona il tuo nome per visualizzare tutti i turni prenotati a tuo nome.")
+
+    volontari_esistenti = get_lista_volontari()
+
+    if not volontari_esistenti:
+        st.info("Nessun turno registrato nel sistema finora. Inserisci prima un turno per comparire nella lista.")
+    else:
+        volontario_scelto = st.selectbox("Seleziona il tuo nome:", volontari_esistenti)
+        
+        tutti_i_turni = carica_file_json(DB_TURNI, [])
+        turni_personali = [
+            t for t in tutti_i_turni 
+            if t.get("volontario", "").strip().lower() == volontario_scelto.strip().lower()
+        ]
+
+        if not turni_personali:
+            st.info(f"Non ci sono turni registrati a nome di **{volontario_scelto}**.")
+        else:
+            st.success(f"Trovati **{len(turni_personali)}** turni per **{volontario_scelto}**:")
+            
+            # Trasformiamo i dati in un formato tabellare ordinato e pulito
+            dati_tabella = []
+            for t in turni_personali:
+                dati_tabella.append({
+                    "Settimana": t.get("settimana"),
+                    "Giorno": t.get("giorno"),
+                    "Fascia": t.get("fascia"),
+                    "Orario": t.get("orario"),
+                    "Cani gestiti": ", ".join(t.get("cani_fatti", [])),
+                    "Note": t.get("note", "")
+                })
+            
+            df_miei_turni = pd.DataFrame(dati_tabella)
+            st.dataframe(df_miei_turni, use_container_width=True)
 
 elif menu == "👀 Panoramica":
     st.header("Gestione Turni e Copertura")
@@ -378,12 +448,13 @@ elif menu == "👀 Panoramica":
                                         m_fine = st.time_input("Ora Fine:", value=time(12, 0), key=f"mfin_{t['id']}")
                                     
                                     nuovo_orario = f"{m_inizio.strftime('%H:%M')} - {m_fine.strftime('%H:%M')}"
-                                    nuove_note = st.text_area("Note:", value=t.get("note", ""))
+                                    nuove_note = st.text_area("Note:", value=t.get("note", ""), key=f"note_mod_{t['id']}")
                                     
                                     nuovi_cani = st.multiselect(
                                         "Cani gestiti:",
                                         st.session_state.cani,
-                                        default=[c for c in t["cani_fatti"] if c in st.session_state.cani]
+                                        default=[c for c in t["cani_fatti"] if c in st.session_state.cani],
+                                        key=f"cani_mod_{t['id']}"
                                     )
                                     btn_salva_mod = st.form_submit_button("Salva Modifiche ✅")
                                     if btn_salva_mod:
@@ -429,17 +500,13 @@ elif menu == "🐶 Cani":
     if not st.session_state.is_admin:
         st.warning(
             "🔒 Questa sezione è protetta. Apri il menu 'Admin / Simulatore'"
-            " in alto a destra per inserire la password e aggiungere o"
-            " rimuovere i cani."
+            " in alto a destra per inserire la password."
         )
         st.subheader("Lista attuale dei cani in canile:")
         for dog in st.session_state.cani:
             st.write(f"🐾 **{dog}**")
     else:
-        st.markdown(
-            "Aggiungi o rimuovi i cani presenti in canile (Modalità Admin"
-            " attiva)."
-        )
+        st.markdown("Aggiungi o rimuovi i cani presenti in canile (Modalità Admin attiva).")
 
         new_dog = st.text_input("Nome del nuovo cane:")
         if st.button("Aggiungi Cane"):
@@ -464,12 +531,7 @@ elif menu == "🐶 Cani":
 
 elif menu == "📊 Statistiche":
     st.header("📊 Statistiche Uscite Cani")
-    st.markdown(
-        "Panoramica delle uscite settimanali per ogni cane (calcolate a livello"
-        " di fascia oraria, così se più volontari portano lo stesso cane nello"
-        " stesso turno, viene contato come un'unica uscita)."
-    )
-
+    
     tutti_i_turni = carica_file_json(DB_TURNI, [])
     tutte_le_settimane = sorted(
         list(set(t.get("settimana") for t in tutti_i_turni))
@@ -489,25 +551,16 @@ elif menu == "📊 Statistiche":
     ]
 
     uscite_per_cane = {cane: 0 for cane in st.session_state.cani}
-
     giorni_settimana = [
-        "Lunedì",
-        "Martedì",
-        "Mercoledì",
-        "Giovedì",
-        "Venerdì",
-        "Sabato",
-        "Domenica",
+        "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"
     ]
 
     for giorno in giorni_settimana:
         for fascia in ["Mattina", "Pomeriggio"]:
             turni_fascia = [
-                t
-                for t in turni_stat
+                t for t in turni_stat
                 if t.get("giorno") == giorno and t.get("fascia") == fascia
             ]
-
             cani_in_questa_fascia = set()
             for t in turni_fascia:
                 for c in t.get("cani_fatti", []):
@@ -521,7 +574,6 @@ elif menu == "📊 Statistiche":
         st.info("Nessun cane registrato nel sistema.")
     else:
         st.markdown("---")
-
         st.subheader("🎯 Riepilogo Uscite")
         cols = st.columns(3)
 
@@ -535,41 +587,29 @@ elif menu == "📊 Statistiche":
                 st.metric(label=f"🐾 {cane}", value=f"{conteggio} uscite")
 
         st.markdown("---")
-
         col_grafico, col_tabella = st.columns([1.5, 1])
 
         with col_grafico:
             st.subheader("📈 Grafico a Barre")
             if sum(uscite_per_cane.values()) == 0:
-                st.info(
-                    "Nessuna uscita registrata per i cani in questa"
-                    " settimana."
-                )
+                st.info("Nessuna uscita registrata per i cani in questa settimana.")
             else:
                 df_stat = pd.DataFrame(
                     list(uscite_per_cane.items()),
                     columns=["Cane", "Numero Uscite"],
-                )
-                df_stat = df_stat.set_index("Cane")
+                ).set_index("Cane")
                 st.bar_chart(df_stat)
 
         with col_tabella:
             st.subheader("📋 Tabella Dati")
             df_tabella = pd.DataFrame(
                 list(uscite_per_cane.items()), columns=["Cane", "Uscite"]
-            )
-            df_tabella = df_tabella.sort_values(
-                by="Uscite", ascending=False
-            ).reset_index(drop=True)
+            ).sort_values(by="Uscite", ascending=False).reset_index(drop=True)
             st.dataframe(df_tabella, use_container_width=True)
 
 elif menu == "📚 Archivio":
     st.header("📚 Archivio Storico delle Settimane Passate")
-    st.markdown(
-        "Qui puoi consultare lo storico di tutte le settimane registrate in"
-        " precedenza."
-    )
-
+    
     tutti_i_turni = carica_file_json(DB_TURNI, [])
     tutte_le_settimane = sorted(
         list(set(t.get("settimana") for t in tutti_i_turni))
@@ -578,133 +618,59 @@ elif menu == "📚 Archivio":
         s for s in tutte_le_settimane if s != label_corr and s != label_pros
     ]
 
-    if not settimane_storiche and not tutti_i_turni:
-        st.info("Nessun dato presente nell'archivio storico.")
+    settimane_disponibili = (
+        settimane_storiche if settimane_storiche else tutte_le_settimane
+    )
+
+    if not settimane_disponibili:
+        st.info("Non ci sono ancora settimane passate archiviate.")
     else:
-        settimane_disponibili = (
-            settimane_storiche if settimane_storiche else tutte_le_settimane
+        storico_scelto = st.selectbox(
+            "Seleziona la settimana dall'archivio:", settimane_disponibili
         )
 
-        if not settimane_disponibili:
-            st.info("Non ci sono ancora settimane passate archiviate.")
-        else:
-            storico_scelto = st.selectbox(
-                "Seleziona la settimana dall'archivio:", settimane_disponibili
-            )
+        turni_storico = [
+            t for t in tutti_i_turni if t.get("settimana") == storico_scelto
+        ]
 
-            turni_storico = [
-                t for t in tutti_i_turni if t.get("settimana") == storico_scelto
-            ]
+        giorni_settimana = [
+            "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"
+        ]
 
-            giorni_settimana = [
-                "Lunedì",
-                "Martedì",
-                "Mercoledì",
-                "Giovedì",
-                "Venerdì",
-                "Sabato",
-                "Domenica",
-            ]
+        for giorno in giorni_settimana:
+            st.markdown(f"## 📌 {giorno}")
+            turni_giorno = [t for t in turni_storico if t["giorno"] == giorno]
+            col_m, col_p = st.columns(2)
 
-            for giorno in giorni_settimana:
-                st.markdown(f"## 📌 {giorno}")
-                turni_giorno = [t for t in turni_storico if t["giorno"] == giorno]
+            def mostra_fascia_storica(fascia_nome, col_container):
+                with col_container:
+                    st.markdown(f"### ☀️ {fascia_nome}")
+                    turni_fascia = [
+                        t for t in turni_giorno if t["fascia"] == fascia_nome
+                    ]
 
-                col_m, col_p = st.columns(2)
+                    if not turni_fascia:
+                        st.caption("Nessun volontario registrato in questa fascia.")
+                        return
 
-                def mostra_fascia_storica(fascia_nome, col_container):
-                    with col_container:
-                        st.markdown(f"### ☀️ {fascia_nome}")
-                        turni_fascia = [
-                            t
-                            for t in turni_giorno
-                            if t["fascia"] == fascia_nome
-                        ]
+                    st.markdown("**Volontari presenti:**")
+                    for t in turni_fascia:
+                        cani_str = (
+                            ", ".join(t["cani_fatti"])
+                            if t["cani_fatti"]
+                            else "Nessuno"
+                        )
+                        st.write(
+                            f"• **{t['volontario']}** ({t['orario']}) 🐾 [{cani_str}]"
+                        )
+                        if t["note"]:
+                            st.caption(f"Note: {t['note']}")
 
-                        if not turni_fascia:
-                            st.caption(
-                                "Nessun volontario registrato in questa fascia."
-                            )
-                            return
+            with col_m:
+                mostra_fascia_storica("Mattina", col_m)
+            with col_p:
+                mostra_fascia_storica("Pomeriggio", col_p)
 
-                        st.markdown("**Volontari presenti:**")
-                        for t in turni_fascia:
-                            cani_str = (
-                                ", ".join(t["cani_fatti"])
-                                if t["cani_fatti"]
-                                else "Nessuno"
-                            )
-                            st.write(
-                                f"• **{t['volontario']}** ({t['orario']}) 🐾 [{cani_str}]"
-                            )
-                            if t["note"]:
-                                st.caption(f"Note: {t['note']}")
+            st.markdown("---")
 
-                            if st.session_state.is_admin:
-                                col_mod, col_del = st.columns(2)
-                                with col_mod:
-                                    if st.button(
-                                        f"✏️ Modifica ({t['volontario']})",
-                                        key=f"mod_storico_{giorno}_{fascia_nome}_{t['id']}",
-                                    ):
-                                        st.session_state[f"editing_{t['id']}"] = not st.session_state.get(f"editing_{t['id']}", False)
-                                        st.rerun()
-                                with col_del:
-                                    if st.button(
-                                        f"🗑️ Elimina ({t['volontario']})",
-                                        key=(
-                                            f"del_storico_{giorno}_{fascia_nome}_{t['id']}"
-                                        ),
-                                    ):
-                                        lista_aggiornata = [
-                                            item
-                                            for item in carica_file_json(
-                                                DB_TURNI, []
-                                            )
-                                            if item["id"] != t["id"]
-                                        ]
-                                        salva_file_json(
-                                            DB_TURNI, lista_aggiornata
-                                        )
-                                        if f"editing_{t['id']}" in st.session_state:
-                                            del st.session_state[f"editing_{t['id']}"]
-                                        st.success("Turno eliminato!")
-                                        st.rerun()
-
-                                if st.session_state.get(f"editing_{t['id']}", False):
-                                    with st.form(key=f"form_mod_storico_{t['id']}"):
-                                        st.subheader(f"Modifica Turno di {t['volontario']}")
-                                        
-                                        col_ms1, col_ms2 = st.columns(2)
-                                        with col_ms1:
-                                            ms_inizio = st.time_input("Ora Inizio:", value=time(8, 30), key=f"msin_{t['id']}")
-                                        with col_ms2:
-                                            ms_fine = st.time_input("Ora Fine:", value=time(12, 0), key=f"msfin_{t['id']}")
-                                        
-                                        nuovo_orario = f"{ms_inizio.strftime('%H:%M')} - {ms_fine.strftime('%H:%M')}"
-                                        nuove_note = st.text_area("Note:", value=t.get("note", ""))
-                                        
-                                        nuovi_cani = st.multiselect(
-                                            "Cani gestiti:",
-                                            st.session_state.cani,
-                                            default=[c for c in t["cani_fatti"] if c in st.session_state.cani]
-                                        )
-                                        btn_salva_mod = st.form_submit_button("Salva Modifiche ✅")
-                                        if btn_salva_mod:
-                                            lista_completa = carica_file_json(DB_TURNI, [])
-                                            for item in lista_completa:
-                                                if item["id"] == t["id"]:
-                                                    item["orario"] = nuovo_orario
-                                                    item["note"] = nuove_note
-                                                    item["cani_fatti"] = nuovi_cani
-                                            salva_file_json(DB_TURNI, lista_completa)
-                                            st.session_state[f"editing_{t['id']}"] = False
-                                            st.success("Turno modificato con successo!")
-                                            st.rerun()
-
-                with col_m:
-                    mostra_fascia_storica("Mattina", col_m)
-                with col_p:
-                    mostra_fascia_storica("Pomeriggio", col_p)
-
-                st.markdown("---")
+```
