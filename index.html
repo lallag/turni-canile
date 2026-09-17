@@ -5,43 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestione Turni</title>
     
-    <!-- Collegamento al file di configurazione per il telefono -->
+    <!-- File di configurazione per il telefono -->
     <link rel="manifest" href="manifest.json">
     
     <!-- Icona per la schermata home -->
     <link rel="apple-touch-icon" href="icon.png">
     <link rel="icon" type="image/png" href="icon.png">
 
-    <!-- Stile per fare in modo che carichi l'app a schermo intero -->
+    <!-- Reindirizzamento immediato e pulito verso Streamlit -->
+    <meta http-equiv="refresh" content="0; url=INSERISCI_QUI_IL_TUO_LINK_STREAMLIT">
+    
     <style>
-        body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: #f9f9f9;
-        }
-        iframe {
-            width: 100%;
-            height: 100%;
-            border: none;
-        }
-        .fallback {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
+        body {
             font-family: sans-serif;
             text-align: center;
-            padding: 20px;
+            padding-top: 50px;
+            color: #333;
         }
     </style>
 </head>
 <body>
-
-    <!-- Qui carichiamo la tua app di Streamlit in modo invisibile ma perfettamente funzionante -->
-    <iframe src="https://turni-canile.streamlit.app/" title="Gestione Turni"></iframe>
-
+    <p>Reindirizzamento a Gestione Turni in corso...</p>
+    <p><a href="https://turni-canile.streamlit.app/">Clicca qui se non vieni reindirizzato automaticamente</a></p>
 </body>
 </html>
