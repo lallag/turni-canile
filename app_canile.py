@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, time
 import json
+import os
 import pandas as pd
 import streamlit as st
 
@@ -7,12 +8,12 @@ st.set_page_config(
     page_title="Gestione Turni Canile", page_icon="icona.jpg", layout="wide"
 )
 
-# Tag aggiornati con versione forzata (?v=4) per aggirare la cache testarda di iOS
+# Tag aggiornati con versione forzata (?v=5) per aggirare la cache testarda di iOS
 st.markdown(
     """
     <head>
         <link rel="manifest" href="manifest.json">
-        <link rel="apple-touch-icon" href="https://github.com/lallag/turni-canile/blob/main/icona.jpg?raw=true&v=4">
+        <link rel="apple-touch-icon" href="https://github.com/lallag/turni-canile/blob/main/icona.jpg?raw=true&v=5">
     </head>
 """,
     unsafe_allow_html=True,
@@ -73,7 +74,9 @@ is_weekend_o_venerdi_sera = is_weekend_reale
 
 # --- BARRA LATERALE (SIDEBAR) PER: I MIEI TURNI & ADMIN ---
 with st.sidebar:
-    st.image("icona.jpg", width=80) if st.sidebar else None
+    if os.path.exists("icona.jpg"):
+        st.image("icona.jpg", width=80)
+    
     st.title("🐾 Menu Rapido")
     
     # Sezione "I miei turni" nella sidebar
