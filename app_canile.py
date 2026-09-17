@@ -7,12 +7,12 @@ st.set_page_config(
     page_title="Gestione Turni Canile", page_icon="icona.jpg", layout="wide"
 )
 
-# Tag aggiornati con versione forzata (?v=2) per aggirare la cache testarda di iOS
+# Tag aggiornati con versione forzata (?v=3) per aggirare la cache testarda di iOS
 st.markdown(
     """
     <head>
         <link rel="manifest" href="manifest.json">
-        <link rel="apple-touch-icon" href="https://github.com/lallag/turni-canile/blob/main/icona.jpg?raw=true&v=2">
+        <link rel="apple-touch-icon" href="https://github.com/lallag/turni-canile/blob/main/icona.jpg?raw=true&v=3">
     </head>
 """,
     unsafe_allow_html=True,
@@ -71,55 +71,76 @@ is_weekend_reale = (giorno_settimana > 4) or (
 )
 is_weekend_o_venerdi_sera = is_weekend_reale
 
-# --- INTESTAZIONE CON AREA ADMIN IN ALTO A DESTRA ---
-col_titolo, col_admin = st.columns([3, 1])
+# --- INTESTAZIONE CON AREA RAPIDA IN ALTO A DESTRA ---
+col_titolo, col_azioni_destra = st.columns([2.5, 1.5])
 
 with col_titolo:
     st.title("🐾 Turni Canile")
 
-with col_admin:
-    ADMIN_PASSWORD_CORRETTA = "canile2026"
+with col_azioni_destra:
+    # Creiamo due colonne affiancate in alto: una per "I miei turni" e una per l'Admin
+    col_btn_miei, col_btn_admin = st.columns(2)
     
-    with st.expander("🔒 Admin / Simulatore", expanded=False):
-        if not st.session_state.is_admin:
-            with st.form("form_login_admin_top"):
-                pwd_input = st.text_input("Password:", type="password", key="pwd_top")
-                btn_login = st.form_submit_button("Sblocca")
-                if btn_login:
-                    if pwd_input == ADMIN_PASSWORD_CORRETTA:
-                        st.session_state.is_admin = True
-                        st.success("Sbloccato!")
-                        st.rerun()
-                    else:
-                        st.error("Errata.")
-        else:
-            st.success("🔓 Admin attivo")
+    with col_btn_miei:
+        with st.popover("🔍 I miei turni"):
+            st.markdown("### I tuoi turni prenotati")
+            volontari_esistenti_pop = carica_file_json(DB_TURNI, [])
+            nomi_pop = sorted(list(set(t.get("volontario", "").strip() for t in volontari_esistenti_pop if t.get("volontario"))))
             
-            scelta_simulazione = st.selectbox(
-                "Simulazione:",
-                [
-                    "📅 Automatico",
-                    "⚠️ Simula Weekend",
-                    "🟢 Simula Feriale",
-                ],
-                key="selettore_simulazione_top",
-            )
-
-            if scelta_simulazione == "⚠️ Simula Weekend":
-                is_weekend_o_venerdi_sera = True
-            elif scelta_simulazione == "🟢 Simula Feriale":
-                is_weekend_o_venerdi_sera = False
+            if not nomi_pop:
+                st.info("Nessun turno registrato nel sistema.")
             else:
-                is_weekend_o_venerdi_sera = is_weekend_reale
+                nome_cercato = st.selectbox("Seleziona il tuo nome:", nomi_pop, key="selettore_miei_turni_rapido")
+                turni_pers = [t for t in volontari_esistenti_pop if t.get("volontario", "").strip().lower() == nome_cercato.lower()]
+                
+                if not turni_pers:
+                    st.write("Nessun turno trovato.")
+                else:
+                    for tp in turni_pers:
+                        cani_str = ", ".join(tp.get("cani_fatti", []))
+                        st.markdown(f"• **{tp.get('settimana')}**<br>📅 {tp.get('giorno')} ({tp.get('fascia')})<br>⏰ {tp.get('orario')}<br>🐾 [{cani_str}]", unsafe_allow_html=True)
+                        st.markdown("---")
 
-            if st.button("🔒 Esci Admin", key="esci_admin_top"):
-                st.session_state.is_admin = False
-                st.rerun()
+    with col_btn_admin:
+        ADMIN_PASSWORD_CORRETTA = "canile2026"
+        with st.popover("🔒 Admin"):
+            if not st.session_state.is_admin:
+                with st.form("form_login_admin_top"):
+                    pwd_input = st.text_input("Password:", type="password", key="pwd_top")
+                    btn_login = st.form_submit_button("Sblocca")
+                    if btn_login:
+                        if pwd_input == ADMIN_PASSWORD_CORRETTA:
+                            st.session_state.is_admin = True
+                            st.success("Sbloccato!")
+                            st.rerun()
+                        else:
+                            st.error("Errata.")
+            else:
+                st.success("🔓 Admin attivo")
+                scelta_simulazione = st.selectbox(
+                    "Simulazione:",
+                    [
+                        "📅 Automatico",
+                        "⚠️ Simula Weekend",
+                        "🟢 Simula Feriale",
+                    ],
+                    key="selettore_simulazione_top",
+                )
 
-# --- MENU PRINCIPALE IN ALTO ---
+                if scelta_simulazione == "⚠️ Simula Weekend":
+                    is_weekend_o_venerdi_sera = True
+                elif scelta_simulazione == "🟢 Simula Feriale":
+                    is_weekend_o_venerdi_sera = False
+                else:
+                    is_weekend_o_venerdi_sera = is_weekend_reale
+
+                if st.button("🔒 Esci Admin", key="esci_admin_top"):
+                    st.session_state.is_admin = False
+                    st.rerun()
+
+# --- MENU PRINCIPALE IN ALTO (Senza la tab "I miei turni" che ora è comodamente in alto) ---
 opzioni_menu = [
     "📅 Inserisci",
-    "🔍 I miei turni",
     "👀 Panoramica",
     "🐶 Cani",
     "📊 Statistiche",
@@ -153,7 +174,7 @@ if is_weekend_o_venerdi_sera:
         " turni per la settimana che sta per arrivare."
     )
 
-# Funzione di utilità per estrarre la lista unica dei volontari già registrati
+
 def get_lista_volontari():
     turni_esistenti = carica_file_json(DB_TURNI, [])
     nomi = set()
@@ -162,6 +183,26 @@ def get_lista_volontari():
         if nome:
             nomi.add(nome)
     return sorted(list(nomi))
+
+
+# Funzione intelligente per calcolare i cani più frequenti di un determinato volontario
+def get_cani_frequenti_volontario(nome_volontario):
+    if not nome_volontario or nome_volontario == "➕ Altro / Nuovo volontario" or nome_volontario == "-- Seleziona il tuo nome --":
+        return []
+    
+    turni_esistenti = carica_file_json(DB_TURNI, [])
+    conteggio_cani = {}
+    
+    for t in turni_esistenti:
+        if t.get("volontario", "").strip().lower() == nome_volontario.strip().lower():
+            for c in t.get("cani_fatti", []):
+                if c in st.session_state.cani:
+                    conteggio_cani[c] = conteggio_cani.get(c, 0) + 1
+                    
+    # Ordiniamo i cani per frequenza decrescente
+    cani_ordinati = sorted(conteggio_cani.items(), key=lambda x: x[1], reverse=True)
+    # Restituiamo i primi più frequenti (es. i primi 3 o quelli scelti più spesso)
+    return [c[0] for c in cani_ordinati if c[1] >= 1]
 
 
 if menu == "📅 Inserisci":
@@ -184,7 +225,6 @@ if menu == "📅 Inserisci":
         col1, col2 = st.columns(2)
 
         with col1:
-            # Selezione intelligente del volontario
             scelte_volontario = ["-- Seleziona il tuo nome --"] + volontari_registrati + ["➕ Altro / Nuovo volontario"]
             scelta_volontario_dropdown = st.selectbox("Tuo Nome e Cognome:", scelte_volontario)
             
@@ -233,13 +273,28 @@ if menu == "📅 Inserisci":
 
         st.subheader("Gestione Cani per questo turno")
 
-        seleziona_tutti = st.checkbox("🐾 Seleziona TUTTI i cani")
+        # Determina i suggerimenti intelligenti basati sullo storico del volontario
+        nome_temp_controllo = scelta_volontario_dropdown if scelta_volontario_dropdown != "➕ Altro / Nuovo volontario" else volontario_nuovo_input
+        cani_suggeriti = get_cani_frequenti_volontario(nome_temp_controllo)
+
+        col_cani_op1, col_cani_op2 = st.columns([1, 1])
+        with col_cani_op1:
+            seleziona_tutti = st.checkbox("🐾 Seleziona TUTTI i cani")
+        with col_cani_op2:
+            if cani_suggeriti:
+                st.caption(f"💡 Suggerimento basato sulle tue abitudini: {', '.join(cani_suggeriti)}")
 
         if seleziona_tutti:
             cani_fatti = st.multiselect(
                 "✅ Cani che sei autorizzato a gestire:",
                 st.session_state.cani,
                 default=st.session_state.cani,
+            )
+        elif cani_suggeriti:
+            cani_fatti = st.multiselect(
+                "✅ Cani che sei autorizzato a gestire:",
+                st.session_state.cani,
+                default=cani_suggeriti
             )
         else:
             cani_fatti = st.multiselect(
@@ -249,7 +304,6 @@ if menu == "📅 Inserisci":
         submit_button = st.form_submit_button(label="Registra Turno 🚀")
 
         if submit_button:
-            # Determinazione finale del nome volontario
             if scelta_volontario_dropdown == "➕ Altro / Nuovo volontario":
                 volontario = volontario_nuovo_input.strip()
             elif scelta_volontario_dropdown != "-- Seleziona il tuo nome --":
@@ -298,43 +352,6 @@ if menu == "📅 Inserisci":
                         lista_turni.append(nuovo_turno)
                         salva_file_json(DB_TURNI, lista_turni)
                         st.success(f"Turno registrato con successo per {volontario}!")
-
-elif menu == "🔍 I miei turni":
-    st.header("🔍 Cerca i miei turni")
-    st.markdown("Seleziona il tuo nome per visualizzare tutti i turni prenotati a tuo nome.")
-
-    volontari_esistenti = get_lista_volontari()
-
-    if not volontari_esistenti:
-        st.info("Nessun turno registrato nel sistema finora. Inserisci prima un turno per comparire nella lista.")
-    else:
-        volontario_scelto = st.selectbox("Seleziona il tuo nome:", volontari_esistenti)
-        
-        tutti_i_turni = carica_file_json(DB_TURNI, [])
-        turni_personali = [
-            t for t in tutti_i_turni 
-            if t.get("volontario", "").strip().lower() == volontario_scelto.strip().lower()
-        ]
-
-        if not turni_personali:
-            st.info(f"Non ci sono turni registrati a nome di **{volontario_scelto}**.")
-        else:
-            st.success(f"Trovati **{len(turni_personali)}** turni per **{volontario_scelto}**:")
-            
-            # Trasformiamo i dati in un formato tabellare ordinato e pulito
-            dati_tabella = []
-            for t in turni_personali:
-                dati_tabella.append({
-                    "Settimana": t.get("settimana"),
-                    "Giorno": t.get("giorno"),
-                    "Fascia": t.get("fascia"),
-                    "Orario": t.get("orario"),
-                    "Cani gestiti": ", ".join(t.get("cani_fatti", [])),
-                    "Note": t.get("note", "")
-                })
-            
-            df_miei_turni = pd.DataFrame(dati_tabella)
-            st.dataframe(df_miei_turni, use_container_width=True)
 
 elif menu == "👀 Panoramica":
     st.header("Gestione Turni e Copertura")
@@ -489,8 +506,8 @@ elif menu == "🐶 Cani":
 
     if not st.session_state.is_admin:
         st.warning(
-            "🔒 Questa sezione è protetta. Apri il menu 'Admin / Simulatore'"
-            " in alto a destra per inserire la password."
+            "🔒 Questa sezione è protetta. Apri il menu 'Admin' in alto a destra"
+            " per inserire la password."
         )
         st.subheader("Lista attuale dei cani in canile:")
         for dog in st.session_state.cani:
