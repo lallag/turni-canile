@@ -64,8 +64,6 @@ if "turni" not in st.session_state:
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
 
-st.title("🐾 Gestione Turni e Copertura Canile")
-
 adesso = datetime.now()
 giorno_settimana = adesso.weekday()
 ora_attuale = adesso.hour
@@ -74,6 +72,51 @@ is_weekend_reale = (giorno_settimana > 4) or (
     giorno_settimana == 4 and ora_attuale >= 18
 )
 is_weekend_o_venerdi_sera = is_weekend_reale
+
+# --- INTESTAZIONE CON AREA ADMIN IN ALTO A DESTRA ---
+col_titolo, col_admin = st.columns([3, 1])
+
+with col_titolo:
+    st.title("🐾 Turni Canile")
+
+with col_admin:
+    ADMIN_PASSWORD_CORRETTA = "canile2026"
+    
+    with st.expander("🔒 Admin / Simulatore", expanded=False):
+        if not st.session_state.is_admin:
+            with st.form("form_login_admin_top"):
+                pwd_input = st.text_input("Password:", type="password", key="pwd_top")
+                btn_login = st.form_submit_button("Sblocca")
+                if btn_login:
+                    if pwd_input == ADMIN_PASSWORD_CORRETTA:
+                        st.session_state.is_admin = True
+                        st.success("Sbloccato!")
+                        st.rerun()
+                    else:
+                        st.error("Errata.")
+        else:
+            st.success("🔓 Admin attivo")
+            
+            scelta_simulazione = st.selectbox(
+                "Simulazione:",
+                [
+                    "📅 Automatico",
+                    "⚠️ Simula Weekend",
+                    "🟢 Simula Feriale",
+                ],
+                key="selettore_simulazione_top",
+            )
+
+            if scelta_simulazione == "⚠️ Simula Weekend":
+                is_weekend_o_venerdi_sera = True
+            elif scelta_simulazione == "🟢 Simula Feriale":
+                is_weekend_o_venerdi_sera = False
+            else:
+                is_weekend_o_venerdi_sera = is_weekend_reale
+
+            if st.button("🔒 Esci Admin", key="esci_admin_top"):
+                st.session_state.is_admin = False
+                st.rerun()
 
 # --- MENU PRINCIPALE IN ALTO (A MISURA DI DITO SU MOBILE) ---
 opzioni_menu = [
@@ -84,49 +127,6 @@ opzioni_menu = [
     "📚 Archivio",
 ]
 menu = st.pills("Seleziona sezione:", opzioni_menu, default=opzioni_menu[0])
-
-# --- AREA AMMINISTRATRICI IN PAGINA PRINCIPALE ---
-ADMIN_PASSWORD_CORRETTA = "canile2026"
-
-with st.expander("🔒 Area Riservata Amministratrici / Simulatore", expanded=False):
-    if not st.session_state.is_admin:
-        with st.form("form_login_admin_main"):
-            pwd_input = st.text_input("Password Admin:", type="password")
-            btn_login = st.form_submit_button("Sblocca Admin")
-            if btn_login:
-                if pwd_input == ADMIN_PASSWORD_CORRETTA:
-                    st.session_state.is_admin = True
-                    st.success("Accesso effettuato!")
-                    st.rerun()
-                else:
-                    st.error("Password errata.")
-    else:
-        st.success("🔓 Modulo Admin Attivo")
-
-        # --- SIMULATORE PER ANTEPRIMA ---
-        st.markdown("---")
-        st.subheader("🧪 Simulatore Anteprima")
-        scelta_simulazione = st.selectbox(
-            "Forza visualizzazione:",
-            [
-                "📅 Automatico (Tempo Reale)",
-                "⚠️ Simula Venerdì Sera / Weekend",
-                "🟢 Simula Lunedì - Giovedì",
-            ],
-            key="selettore_simulazione_main",
-        )
-
-        if scelta_simulazione == "⚠️ Simula Venerdì Sera / Weekend":
-            is_weekend_o_venerdi_sera = True
-        elif scelta_simulazione == "🟢 Simula Lunedì - Giovedì":
-            is_weekend_o_venerdi_sera = False
-        else:
-            is_weekend_o_venerdi_sera = is_weekend_reale
-
-        if st.button("🔒 Esci da Modalità Admin"):
-            st.session_state.is_admin = False
-            st.rerun()
-
 st.markdown("---")
 
 
@@ -375,8 +375,8 @@ elif menu == "🐶 Cani":
 
     if not st.session_state.is_admin:
         st.warning(
-            "🔒 Questa sezione è protetta. Apri il menu 'Area Riservata"
-            " Amministratrici' in alto per inserire la password e aggiungere o"
+            "🔒 Questa sezione è protetta. Apri il menu 'Admin / Simulatore'"
+            " in alto a destra per inserire la password e aggiungere o"
             " rimuovere i cani."
         )
         st.subheader("Lista attuale dei cani in canile:")
