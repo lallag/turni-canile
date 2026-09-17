@@ -30,10 +30,21 @@ def salva_file_json(filename, data):
     pass
 
 
-# Inizializzazione stato con i file su GitHub
+# Inizializzazione stato con i file su GitHub (e lista cani predefinita)
 if "cani" not in st.session_state:
   st.session_state.cani = carica_file_json(
-      DB_CANI, ["Marley", "Diego", "Lucky", "Macchia", "Sami", "Bonnie", "Giada", "Nelson", "Amber"]
+      DB_CANI,
+      [
+          "Marley",
+          "Diego",
+          "Lucky",
+          "Macchia",
+          "Sami",
+          "Bonnie",
+          "Giada",
+          "Nelson",
+          "Amber",
+      ],
   )
 
 if "turni" not in st.session_state:
@@ -96,7 +107,7 @@ else:
     st.session_state.is_admin = False
     st.rerun()
 
-# --- MENU PRINCIPALE AGGIORNATO (Statistiche spostate prima dell'Archivio) ---
+# --- MENU PRINCIPALE AGGIORNATO ---
 opzioni_menu = [
     "📅 Inserisci / Modifica Turno",
     "👀 Visualizza Panoramica Settimanale",
@@ -368,29 +379,34 @@ elif menu == "📊 Statistiche Cani":
       "Seleziona settimana da analizzare:", tutte_le_settimane
   )
 
-turni_stat = [t for t in tutti_i_turni if t.get("settimana") == settimana_stat]
+  turni_stat = [t for t in tutti_i_turni if t.get("settimana") == settimana_stat]
+
   # --- CALCOLO CORRETTO: UN'USCITA PER FASCIA ORARIA (Giorno + Mattina/Pomeriggio) ---
-  # Raggruppiamo i cani usciti per (Giorno, Fascia)
   uscite_per_cane = {cane: 0 for cane in st.session_state.cani}
-  
+
   giorni_settimana = [
-      "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"
+      "Lunedì",
+      "Martedì",
+      "Mercoledì",
+      "Giovedì",
+      "Venerdì",
+      "Sabato",
+      "Domenica",
   ]
-  
+
   for giorno in giorni_settimana:
     for fascia in ["Mattina", "Pomeriggio"]:
-      # Trova tutti i turni di quel giorno in quella fascia
       turni_fascia = [
-          t for t in turni_stat if t.get("giorno") == giorno and t.get("fascia") == fascia
+          t
+          for t in turni_stat
+          if t.get("giorno") == giorno and t.get("fascia") == fascia
       ]
-      
-      # Raccogli tutti i cani portati in questa fascia (senza doppioni se più volontari lo segnano)
+
       cani_in_questa_fascia = set()
       for t in turni_fascia:
         for c in t.get("cani_fatti", []):
           cani_in_questa_fascia.add(c)
-          
-      # Incrementa il contatore per ciascun cane uscito in questa fascia
+
       for c in cani_in_questa_fascia:
         if c in uscite_per_cane:
           uscite_per_cane[c] += 1
@@ -398,23 +414,22 @@ turni_stat = [t for t in tutti_i_turni if t.get("settimana") == settimana_stat]
   if not st.session_state.cani:
     st.info("Nessun cane registrato nel sistema.")
   else:
-    # --- NUOVA ORGANIZZAZIONE VISIVA PIÙ ORDINATA ---
     st.markdown("---")
-    
-    # 1. Metriche riassuntive in alto (griglia ordinata)
+
     st.subheader("🎯 Riepilogo Uscite")
     cols = st.columns(3)
-    
-    lista_cani_ordinata = sorted(uscite_per_cane.items(), key=lambda x: x[1], reverse=True)
-    
+
+    lista_cani_ordinata = sorted(
+        uscite_per_cane.items(), key=lambda x: x[1], reverse=True
+    )
+
     for idx, (cane, conteggio) in enumerate(lista_cani_ordinata):
       col_corrente = cols[idx % 3]
       with col_corrente:
         st.metric(label=f"🐾 {cane}", value=f"{conteggio} uscite")
-        
+
     st.markdown("---")
-    
-    # 2. Grafico e Tabella dettagliata affiancati ma puliti
+
     col_grafico, col_tabella = st.columns([1.5, 1])
 
     with col_grafico:
@@ -433,7 +448,9 @@ turni_stat = [t for t in tutti_i_turni if t.get("settimana") == settimana_stat]
       df_tabella = pd.DataFrame(
           list(uscite_per_cane.items()), columns=["Cane", "Uscite"]
       )
-      df_tabella = df_tabella.sort_values(by="Uscite", ascending=False).reset_index(drop=True)
+      df_tabella = df_tabella.sort_values(
+          by="Uscite", ascending=False
+      ).reset_index(drop=True)
       st.dataframe(df_tabella, use_container_width=True)
 
 elif menu == "📚 Archivio Storico":
