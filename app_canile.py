@@ -368,8 +368,7 @@ elif menu == "📊 Statistiche Cani":
       "Seleziona settimana da analizzare:", tutte_le_settimane
   )
 
-  turni_stat = [t for t in tutti_i_turni if t.get("settimana"] == settimana_stat]
-
+turni_stat = [t for t in tutti_i_turni if t.get("settimana") == settimana_stat]
   # --- CALCOLO CORRETTO: UN'USCITA PER FASCIA ORARIA (Giorno + Mattina/Pomeriggio) ---
   # Raggruppiamo i cani usciti per (Giorno, Fascia)
   uscite_per_cane = {cane: 0 for cane in st.session_state.cani}
