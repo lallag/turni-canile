@@ -17,6 +17,9 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+# Un pulsante ben visibile nella sidebar per aprire/chiudere o facilitare l'interazione
+if st.sidebar.button("📂 Apri / Aggiorna Sezioni", use_container_width=True):
+    st.rerun()
 
 # Tag aggiornati con versione forzata (?v=2) per aggirare la cache testarda di iOS
 st.markdown(
