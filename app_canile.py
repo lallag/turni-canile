@@ -8,18 +8,6 @@ import streamlit as st
 st.set_page_config(
     page_title="Gestione Turni Canile", page_icon="icona.jpg", layout="wide"
 )
-st.markdown("""
-    <style>
-    /* Ingrandisce qualsiasi icona o pulsante nell'header in alto a sinistra (menu mobile) */
-    header [data-testid="baseButton-header"], header button {
-        transform: scale(1.6) !important;
-        transform-origin: left center !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
-# Un pulsante ben visibile nella sidebar per aprire/chiudere o facilitare l'interazione
-if st.sidebar.button("📂 Apri / Aggiorna Sezioni", use_container_width=True):
-    st.rerun()
 
 # Tag aggiornati con versione forzata (?v=2) per aggirare la cache testarda di iOS
 st.markdown(
@@ -130,15 +118,16 @@ else:
         st.session_state.is_admin = False
         st.rerun()
 
-# --- MENU PRINCIPALE AGGIORNATO ---
+# --- MENU PRINCIPALE IN ALTO (A MISURA DI DITO SU MOBILE) ---
 opzioni_menu = [
-    "📅 Inserisci / Modifica Turno",
-    "👀 Visualizza Panoramica Settimanale",
-    "🐶 Gestione Cani",
-    "📊 Statistiche Cani",
-    "📚 Archivio Storico",
+    "📅 Inserisci",
+    "👀 Panoramica",
+    "🐶 Cani",
+    "📊 Statistiche",
+    "📚 Archivio",
 ]
-menu = st.sidebar.selectbox("Menu", opzioni_menu)
+menu = st.pills("Seleziona sezione:", opzioni_menu, default=opzioni_menu[0])
+st.markdown("---")
 
 
 def get_intervalli_settimane():
@@ -165,7 +154,7 @@ if is_weekend_o_venerdi_sera:
         " turni per la settimana che sta per arrivare."
     )
 
-if menu == "📅 Inserisci / Modifica Turno":
+if menu == "📅 Inserisci":
     st.header("Gestione Turni")
 
     if is_weekend_o_venerdi_sera:
@@ -242,7 +231,7 @@ if menu == "📅 Inserisci / Modifica Turno":
                 salva_file_json(DB_TURNI, lista_turni)
                 st.success(f"Turno registrato con successo per {volontario}!")
 
-elif menu == "👀 Visualizza Panoramica Settimanale":
+elif menu == "👀 Panoramica":
     st.header("Gestione Turni e Copertura")
 
     turni_attuali = carica_file_json(DB_TURNI, [])
@@ -347,7 +336,7 @@ elif menu == "👀 Visualizza Panoramica Settimanale":
 
             st.markdown("---")
 
-elif menu == "🐶 Gestione Cani":
+elif menu == "🐶 Cani":
     st.header("Gestione Anagrafica Cani")
 
     if not st.session_state.is_admin:
@@ -386,7 +375,7 @@ elif menu == "🐶 Gestione Cani":
                     salva_file_json(DB_CANI, st.session_state.cani)
                     st.rerun()
 
-elif menu == "📊 Statistiche Cani":
+elif menu == "📊 Statistiche":
     st.header("📊 Statistiche Uscite Cani")
     st.markdown(
         "Panoramica delle uscite settimanali per ogni cane (calcolate a livello"
@@ -487,7 +476,7 @@ elif menu == "📊 Statistiche Cani":
             ).reset_index(drop=True)
             st.dataframe(df_tabella, use_container_width=True)
 
-elif menu == "📚 Archivio Storico":
+elif menu == "📚 Archivio":
     st.header("📚 Archivio Storico delle Settimane Passate")
     st.markdown(
         "Qui puoi consultare lo storico di tutte le settimane registrate in"
@@ -578,7 +567,9 @@ elif menu == "📚 Archivio Storico":
                                         )
                                         if item["id"] != t["id"]
                                     ]
-                                    salva_file_json(DB_TURNI, lista_aggiornata)
+                                    salva_file_json(
+                                        DB_TURNI, lista_aggiornata
+                                    )
                                     st.success("Turno eliminato!")
                                     st.rerun()
 
