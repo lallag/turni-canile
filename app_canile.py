@@ -8,6 +8,16 @@ import streamlit as st
 st.set_page_config(
     page_title="Gestione Turni Canile", page_icon="icona.jpg", layout="wide"
 )
+st.markdown("""
+    <style>
+    /* Ingrandisce il pulsante/freccia del menu a scomparsa su mobile */
+    button[kind="header"] {
+        transform: scale(1.4);
+        transform-origin: left center;
+        margin-left: 5px;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 # Tag aggiornati con versione forzata (?v=2) per aggirare la cache testarda di iOS
 st.markdown(
