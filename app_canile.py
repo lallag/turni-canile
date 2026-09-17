@@ -8,6 +8,15 @@ import streamlit as st
 st.set_page_config(
     page_title="Gestione Turni Canile", page_icon="🐾", layout="wide"
 )
+st.markdown(
+    """
+    <head>
+        <link rel="apple-touch-icon" href="zampa.png">
+        <link rel="icon" type="image/png" href="zampa.png">
+    </head>
+""",
+    unsafe_allow_html=True,
+)
 
 # --- GESTIONE DATI PERSISTENTI TRAMITE GITHUB ---
 DB_TURNI = "turni.json"
