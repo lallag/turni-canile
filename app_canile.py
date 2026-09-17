@@ -158,7 +158,8 @@ with st.container():
     giorni_map_ita = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
     giorno_oggi_str = giorni_map_ita[adesso.weekday()]
     
-    turni_oggi = [t for t in turni_notifiche if t.get("giorno"] == giorno_oggi_str]
+    # CORRETTO: t.get("giorno") al posto di t.get("giorno"]
+    turni_oggi = [t for t in turni_notifiche if t.get("giorno") == giorno_oggi_str]
     cani_coperti_oggi = set()
     for t in turni_oggi:
         for c in t.get("cani_fatti", []):
@@ -169,8 +170,6 @@ with st.container():
     if len(turni_oggi) > 0 and cani_scoperti_oggi:
         with st.expander("🔔 Avvisi Canile del Giorno", expanded=True):
             st.warning(f"⚠️ **Attenzione ({giorno_oggi_str}):** Ci sono cani senza volontari assegnati oggi: `{', '.join(cani_scoperti_oggi)}`")
-
-st.markdown("---")
 
 # --- MENU PRINCIPALE IN ALTO ---
 opzioni_menu = [
