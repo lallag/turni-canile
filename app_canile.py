@@ -188,15 +188,29 @@ if menu == "📅 Inserisci":
             fascia = st.selectbox("Fascia oraria:", ["Mattina", "Pomeriggio"])
 
         with col2:
-            st.markdown("**Seleziona Orario:**")
+            st.markdown(f"**Orario per {fascia}:**")
+            
+            # Imposta orari predefiniti intelligenti in base alla fascia scelta nel form
+            default_inizio = time(8, 30) if fascia == "Mattina" else time(14, 30)
+            default_fine = time(12, 0) if fascia == "Mattina" else time(18, 0)
+
             col_ora1, col_ora2 = st.columns(2)
             with col_ora1:
-                ora_inizio = st.time_input("Da:", value=time(9, 0))
-            with col_ora2:
-                ora_fine = st.time_input("A:", value=time(12, 0))
+                ora_inizio = st.time_input("Da:", value=default_inizio)
             
-            # Unione automatica in formato stringa sicura
-            orario = f"{ora_inizio.strftime('%H:%M')} - {ora_fine.strftime('%H:%M')}"
+            senza_fine = st.checkbox("Senza orario di fine (da quest'ora in poi)")
+
+            with col_ora2:
+                if not senza_fine:
+                    ora_fine = st.time_input("A:", value=default_fine)
+                else:
+                    st.markdown("<br><i>Nessun limite</i>", unsafe_allow_html=True)
+            
+            # Formattazione stringa orario finale
+            if senza_fine:
+                orario = f"Dalle {ora_inizio.strftime('%H:%M')}"
+            else:
+                orario = f"{ora_inizio.strftime('%H:%M')} - {ora_fine.strftime('%H:%M')}"
 
             note = st.text_area("Note aggiuntive (opzionale):")
 
@@ -218,37 +232,49 @@ if menu == "📅 Inserisci":
         submit_button = st.form_submit_button(label="Registra Turno 🚀")
 
         if submit_button:
-            if volontario.strip() == "":
-                st.warning("Per favore, inserisci il tuo nome prima di registrare il turno.")
-            else:
-                lista_turni = carica_file_json(DB_TURNI, [])
-                
-                # Controllo anti-doppione
-                volontario_normalizzato = volontario.strip().lower()
-                doppione_trovato = any(
-                    t.get("volontario", "").strip().lower() == volontario_normalizzato and
-                    t.get("settimana") == settimana_scelta and
-                    t.get("giorno") == giorno and
-                    t.get("fascia") == fascia
-                    for t in lista_turni
-                )
+            # Controllo compatibilità fascia oraria
+            ora_limite_divisione = time(14, 0)
+            errore_fascia = False
+            
+            if fascia == "Mattina" and ora_inizio >= ora_limite_divisione:
+                st.error("❌ **Errore:** Hai scelto la fascia **Mattina**, ma l'orario di inizio è pomeridiano (dalle 14:00 in poi). Correggi l'orario o seleziona 'Pomeriggio'.")
+                errore_fascia = True
+            elif fascia == "Pomeriggio" and ora_inizio < ora_limite_divisione:
+                st.error("❌ **Errore:** Hai scelto la fascia **Pomeriggio**, ma l'orario di inizio è mattutino (prima delle 14:00). Correggi l'orario o seleziona 'Mattina'.")
+                errore_fascia = True
 
-                if doppione_trovato:
-                    st.error(f"⚠️ **Attenzione:** {volontario.strip()} risulta già registrato per {giorno} ({fascia}) in questa settimana! Elimina o modifica il turno esistente se vuoi cambiarlo.")
+            if not errore_fascia:
+                if volontario.strip() == "":
+                    st.warning("Per favore, inserisci il tuo nome prima di registrare il turno.")
                 else:
-                    nuovo_turno = {
-                        "id": str(datetime.now().timestamp()),
-                        "settimana": settimana_scelta,
-                        "volontario": volontario.strip(),
-                        "giorno": giorno,
-                        "fascia": fascia,
-                        "orario": orario,
-                        "cani_fatti": cani_fatti,
-                        "note": note,
-                    }
-                    lista_turni.append(nuovo_turno)
-                    salva_file_json(DB_TURNI, lista_turni)
-                    st.success(f"Turno registrato con successo per {volontario}!")
+                    lista_turni = carica_file_json(DB_TURNI, [])
+                    
+                    # Controllo anti-doppione
+                    volontario_normalizzato = volontario.strip().lower()
+                    doppione_trovato = any(
+                        t.get("volontario", "").strip().lower() == volontario_normalizzato and
+                        t.get("settimana") == settimana_scelta and
+                        t.get("giorno") == giorno and
+                        t.get("fascia") == fascia
+                        for t in lista_turni
+                    )
+
+                    if doppione_trovato:
+                        st.error(f"⚠️ **Attenzione:** {volontario.strip()} risulta già registrato per {giorno} ({fascia}) in questa settimana! Elimina o modifica il turno esistente se vuoi cambiarlo.")
+                    else:
+                        nuovo_turno = {
+                            "id": str(datetime.now().timestamp()),
+                            "settimana": settimana_scelta,
+                            "volontario": volontario.strip(),
+                            "giorno": giorno,
+                            "fascia": fascia,
+                            "orario": orario,
+                            "cani_fatti": cani_fatti,
+                            "note": note,
+                        }
+                        lista_turni.append(nuovo_turno)
+                        salva_file_json(DB_TURNI, lista_turni)
+                        st.success(f"Turno registrato con successo per {volontario}!")
 
 elif menu == "👀 Panoramica":
     st.header("Gestione Turni e Copertura")
@@ -347,7 +373,7 @@ elif menu == "👀 Panoramica":
                                     
                                     col_m1, col_m2 = st.columns(2)
                                     with col_m1:
-                                        m_inizio = st.time_input("Ora Inizio:", value=time(9, 0), key=f"min_{t['id']}")
+                                        m_inizio = st.time_input("Ora Inizio:", value=time(8, 30), key=f"min_{t['id']}")
                                     with col_m2:
                                         m_fine = st.time_input("Ora Fine:", value=time(12, 0), key=f"mfin_{t['id']}")
                                     
@@ -651,7 +677,7 @@ elif menu == "📚 Archivio":
                                         
                                         col_ms1, col_ms2 = st.columns(2)
                                         with col_ms1:
-                                            ms_inizio = st.time_input("Ora Inizio:", value=time(9, 0), key=f"msin_{t['id']}")
+                                            ms_inizio = st.time_input("Ora Inizio:", value=time(8, 30), key=f"msin_{t['id']}")
                                         with col_ms2:
                                             ms_fine = st.time_input("Ora Fine:", value=time(12, 0), key=f"msfin_{t['id']}")
                                         
