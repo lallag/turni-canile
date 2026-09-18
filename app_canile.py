@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, time
 import json
 import os
 import pandas as pd
+import pytz
 import streamlit as st
 
 st.set_page_config(
@@ -63,12 +64,15 @@ if "turni" not in st.session_state:
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
 
-adesso = datetime.now()
-giorno_settimana = adesso.weekday()
+# --- GESTIONE ORARIO ITALIANO ESATTO (Bypassa il fuso orario del server cloud) ---
+tz_italia = pytz.timezone("Europe/Rome")
+adesso = datetime.now(tz_italia)
+giorno_settimana = adesso.weekday()  # 0=Lunedì, 4=Venerdì, 5=Sabato, 6=Domenica
 ora_attuale = adesso.hour
 
+# Il weekend parte da venerdì alle 17:00 fino a domenica notte
 is_weekend_reale = (giorno_settimana > 4) or (
-    giorno_settimana == 4 and ora_attuale >= 18
+    giorno_settimana == 4 and ora_attuale >= 17
 )
 is_weekend_o_venerdi_sera = is_weekend_reale
 
@@ -183,7 +187,7 @@ st.markdown("---")
 
 
 def get_intervalli_settimane():
-    oggi = datetime.now()
+    oggi = datetime.now(tz_italia)
     lunedi_corrente = oggi - timedelta(days=oggi.weekday())
     domenica_corrente = lunedi_corrente + timedelta(days=6)
 
@@ -512,7 +516,7 @@ elif menu == "👀 Panoramica":
                                     )
                                     btn_salva_mod = st.form_submit_button("Salva Modifiche ✅")
                                     if btn_salva_mod:
-                                        if not nuovi_cani:
+                                        if not novos_cani := nuovi_cani: # correzione rapida
                                             st.error("Errore: seleziona almeno un cane.")
                                         else:
                                             lista_completa = carica_file_json(DB_TURNI, [])
