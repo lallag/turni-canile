@@ -174,7 +174,7 @@ with st.container():
     giorni_map_ita = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
     giorno_oggi_str = giorni_map_ita[adesso.weekday()]
     
-    turni_oggi = [t for t in turni_notifiche if t.get("giorno"] == giorno_oggi_str] # type: ignore
+    turni_oggi = [t for t in turni_notifiche if t.get("giorno") == giorno_oggi_str]
     cani_coperti_oggi = set()
     for t in turni_oggi:
         for c in t.get("cani_fatti", []):
@@ -475,15 +475,11 @@ elif menu == "👀 Panoramica":
 
                     st.markdown("**Volontari presenti:**")
                     for t in turni_fascia:
-                        cani_str = (
-                            ", ".join(t["cani_fatti"])
-                            if t["cani_fatti"]
-                            else "🧹 Pulizie / LPU"
-                        )
-                        if t["cani_fatti"]:
+                        cani_str = ", ".join(t["cani_fatti"]) if t.get("cani_fatti") else ""
+                        if cani_str:
                             dettaglio_mostra = f"🐾 [{cani_str}]"
                         else:
-                            dettaglio_mostra = f"{cani_str}"
+                            dettaglio_mostra = "🧹 *Pulizie / LPU*"
 
                         st.write(
                             f"• **{t['volontario']}** ({t['orario']}) {dettaglio_mostra}"
@@ -576,7 +572,7 @@ elif menu == "👀 Panoramica":
 
                     cani_coperti = set()
                     for t in turni_fascia:
-                        for c in t["cani_fatti"]:
+                        for c in t.get("cani_fatti", []):
                             cani_coperti.add(c)
 
                     cani_scoperti = [
@@ -765,11 +761,7 @@ elif menu == "📚 Archivio":
 
                     st.markdown("**Volontari presenti:**")
                     for t in turni_fascia:
-                        cani_str = (
-                            ", ".join(t["cani_fatti"])
-                            if t["cani_fatti"]
-                            else "🧹 Pulizie / LPU"
-                        )
+                        cani_str = ", ".join(t["cani_fatti"]) if t.get("cani_fatti") else "🧹 Pulizie / LPU"
                         st.write(
                             f"• **{t['volontario']}** ({t['orario']}) - {cani_str}"
                         )
@@ -1013,7 +1005,7 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                             if nome_lpu_riferimento in st.session_state.lpu_data:
                                 st.session_state.lpu_data[
                                     nome_lpu_riferimento
-                                ]["ore_fatte"] = max(
+                                ][“ore_fatte”] = max(
                                     0.0,
                                     st.session_state.lpu_data[
                                         nome_lpu_riferimento
