@@ -516,7 +516,7 @@ elif menu == "👀 Panoramica":
                                     )
                                     btn_salva_mod = st.form_submit_button("Salva Modifiche ✅")
                                     if btn_salva_mod:
-                                        if not novos_cani := nuovi_cani: # correzione rapida
+                                        if not nuovi_cani:
                                             st.error("Errore: seleziona almeno un cane.")
                                         else:
                                             lista_completa = carica_file_json(DB_TURNI, [])
