@@ -158,7 +158,6 @@ with st.container():
     giorni_map_ita = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
     giorno_oggi_str = giorni_map_ita[adesso.weekday()]
     
-    # CORRETTO: t.get("giorno") al posto di t.get("giorno"]
     turni_oggi = [t for t in turni_notifiche if t.get("giorno") == giorno_oggi_str]
     cani_coperti_oggi = set()
     for t in turni_oggi:
