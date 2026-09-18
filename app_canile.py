@@ -1,9 +1,10 @@
 from datetime import datetime, timedelta, time
-import json
 import os
 import pandas as pd
 import pytz
 import streamlit as st
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 st.set_page_config(
     page_title="Gestione Turni Canile", page_icon="icona.jpg", layout="wide"
@@ -20,65 +21,82 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- GESTIONE DATI PERSISTENTI TRAMITE JSON ---
-DB_TURNI = "turni.json"
-DB_CANI = "cani.json"
-DB_LPU = "lpu_canile.json"
-DB_TURNI_LPU = "turni_lpu_canile.json"
+# --- INIZIALIZZAZIONE FIREBASE FIRESTORE ---
+if not firebase_admin._apps:
+    cred_dict = dict(st.secrets["firebase"])
+    cred = credentials.Certificate(cred_dict)
+    firebase_admin.initialize_app(cred)
 
+db = firestore.client()
 
-def carica_file_json(filename, default_val):
+# --- FUNZIONI DI GESTIONE DATABASE FIRESTORE ---
+def carica_da_firestore(collezione_nome, default_val):
     try:
-        with open(filename, "r") as f:
-            return json.load(f)
-    except Exception:
+        docs = db.collection(collezione_nome).stream()
+        data = {}
+        for doc in docs:
+            data[doc.id] = doc.to_dict()
+        
+        if collezione_nome == "cani":
+            if "lista" in data:
+                return data["lista"].get("elementi", default_val)
+            return default_val
+        elif collezione_nome == "lpu_data":
+            return data if data else default_val
+        elif collezione_nome == "turni" or collezione_nome == "turni_lpu":
+            # Per le liste di turni salvate come documenti con id="item" o simili, oppure dizionari
+            lista = [doc.to_dict() for doc in docs]
+            return lista if lista else default_val
+        return default_val
+    except Exception as e:
         return default_val
 
-
-def salva_file_json(filename, data):
+def salva_su_firestore(collezione_nome, doc_id, data_dict):
     try:
-        with open(filename, "w") as f:
-            json.dump(data, f, indent=4)
+        db.collection(collezione_nome).document(str(doc_id)).set(data_dict)
     except Exception as e:
         pass
 
+def elimina_da_firestore(collezione_nome, doc_id):
+    try:
+        db.collection(collezione_nome).document(str(doc_id)).delete()
+    except Exception as e:
+        pass
 
-# Inizializzazione stato
+# Inizializzazione stato con Firebase
 if "cani" not in st.session_state:
-    st.session_state.cani = carica_file_json(
-        DB_CANI,
-        [
-            "Marley",
-            "Diego",
-            "Lucky",
-            "Macchia",
-            "Sami",
-            "Bonnie",
-            "Giada",
-            "Nelson",
-            "Amber",
-        ],
-    )
+    cani_caricati = carica_da_firestore("cani", None)
+    if cani_caricati and isinstance(cani_caricati, list):
+        st.session_state.cani = cani_caricati
+    else:
+        default_cani = [
+            "Marley", "Diego", "Lucky", "Macchia", "Sami", "Bonnie", "Giada", "Nelson", "Amber"
+        ]
+        st.session_state.cani = default_cani
+        db.collection("cani").document("lista").set({"elementi": default_cani})
 
 if "lpu_data" not in st.session_state:
-    st.session_state.lpu_data = carica_file_json(DB_LPU, {})
+    lpu_caricati = db.collection("lpu_data").stream()
+    lpu_dict = {doc.id: doc.to_dict() for doc in lpu_caricati}
+    st.session_state.lpu_data = lpu_dict if lpu_dict else {}
 
 if "turni_lpu" not in st.session_state:
-    st.session_state.turni_lpu = carica_file_json(DB_TURNI_LPU, [])
+    turni_lpu_docs = db.collection("turni_lpu").stream()
+    st.session_state.turni_lpu = [doc.to_dict() for doc in turni_lpu_docs]
 
 if "turni" not in st.session_state:
-    st.session_state.turni = carica_file_json(DB_TURNI, [])
+    turni_docs = db.collection("turni").stream()
+    st.session_state.turni = [doc.to_dict() for doc in turni_docs]
 
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
 
-# --- GESTIONE ORARIO ITALIANO ESATTO (Bypassa il fuso orario del server cloud) ---
+# --- GESTIONE ORARIO ITALIANO ESATTO ---
 tz_italia = pytz.timezone("Europe/Rome")
 adesso = datetime.now(tz_italia)
-giorno_settimana = adesso.weekday()  # 0=Lunedì, 4=Venerdì, 5=Sabato, 6=Domenica
+giorno_settimana = adesso.weekday()
 ora_attuale = adesso.hour
 
-# Il weekend parte da venerdì alle 17:00 fino a domenica notte
 is_weekend_reale = (giorno_settimana > 4) or (
     giorno_settimana == 4 and ora_attuale >= 17
 )
@@ -91,16 +109,15 @@ with st.sidebar:
     
     st.title("🐾 Menu Rapido")
     
-    # Sezione "I miei turni" nella sidebar
     with st.expander("🔍 Cerca i miei turni", expanded=False):
-        volontari_esistenti_side = carica_file_json(DB_TURNI, [])
-        nomi_side = sorted(list(set(t.get("volontario", "").strip() for t in volontari_esistenti_side if t.get("volontario"))))
+        turni_esistenti_side = carica_da_firestore("turni", [])
+        nomi_side = sorted(list(set(t.get("volontario", "").strip() for t in turni_esistenti_side if t.get("volontario"))))
         
         if not nomi_side:
             st.info("Nessun turno registrato nel sistema.")
         else:
             nome_cercato_side = st.selectbox("Seleziona il tuo nome:", nomi_side, key="selettore_miei_turni_sidebar")
-            turni_pers_side = [t for t in volontari_esistenti_side if t.get("volontario", "").strip().lower() == nome_cercato_side.lower()]
+            turni_pers_side = [t for t in turni_esistenti_side if t.get("volontario", "").strip().lower() == nome_cercato_side.lower()]
             
             if not turni_pers_side:
                 st.write("Nessun turno trovato.")
@@ -116,20 +133,18 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # --- FILTRI PANORAMICA NELLA SIDEBAR ---
     with st.expander("🎛️ Filtra Panoramica", expanded=False):
         tutti_i_cani_presenti = sorted(list(st.session_state.cani))
         filtro_cane = st.selectbox("Filtra per cane:", ["Tutti i cani"] + tutti_i_cani_presenti, key="filtro_cane_side")
         
-        turni_temp = carica_file_json(DB_TURNI, [])
+        turni_temp = carica_da_firestore("turni", [])
         tutti_i_volontari = sorted(list(set(t.get("volontario") for t in turni_temp if t.get("volontario"))))
         filtro_volontario = st.selectbox("Filtra per volontario:", ["Tutti i volontari"] + tutti_i_volontari, key="filtro_vol_side")
 
     st.markdown("---")
 
-    # Sezione "Admin / Simulatore" nella sidebar
     with st.expander("🔒 Area Admin", expanded=False):
-        ADMIN_PASSWORD_CORRETTA = "canile2026"
+        ADMIN_PASSWORD_CORRETTA = st.secrets.get("ADMIN_PASSWORD", "canile2026")
         if not st.session_state.is_admin:
             with st.form("form_login_admin_side"):
                 pwd_input = st.text_input("Password:", type="password", key="pwd_side")
@@ -167,9 +182,8 @@ with st.sidebar:
 # --- INTESTAZIONE PRINCIPALE ---
 st.title("🐾 Turni Canile")
 
-# --- CENTRO NOTIFICHE GENERALE (SOLO COPERTURA ODIERNA) ---
 with st.container():
-    turni_notifiche = carica_file_json(DB_TURNI, [])
+    turni_notifiche = carica_da_firestore("turni", [])
     
     giorni_map_ita = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
     giorno_oggi_str = giorni_map_ita[adesso.weekday()]
@@ -203,7 +217,6 @@ else:
 menu = st.pills("Seleziona sezione:", opzioni_menu, default=opzioni_menu[0])
 st.markdown("---")
 
-
 def get_intervalli_settimane():
     oggi = datetime.now(tz_italia)
     lunedi_corrente = oggi - timedelta(days=oggi.weekday())
@@ -218,7 +231,6 @@ def get_intervalli_settimane():
 
     return str_corr, str_pros
 
-
 label_corr, label_pros = get_intervalli_settimane()
 
 if is_weekend_o_venerdi_sera:
@@ -228,9 +240,8 @@ if is_weekend_o_venerdi_sera:
         " turni per la settimana che sta per arrivare."
     )
 
-
 def get_lista_volontari():
-    turni_esistenti = carica_file_json(DB_TURNI, [])
+    turni_esistenti = carica_da_firestore("turni", [])
     nomi = set()
     for t in turni_esistenti:
         nome = t.get("volontario", "").strip()
@@ -238,12 +249,11 @@ def get_lista_volontari():
             nomi.add(nome)
     return sorted(list(nomi))
 
-
 def get_cani_frequenti_volontario(nome_volontario):
     if not nome_volontario or nome_volontario == "➕ Altro / Nuovo volontario" or nome_volontario == "-- Seleziona il tuo nome --":
         return []
     
-    turni_esistenti = carica_file_json(DB_TURNI, [])
+    turni_esistenti = carica_da_firestore("turni", [])
     conteggio_cani = {}
     
     for t in turni_esistenti:
@@ -254,7 +264,6 @@ def get_cani_frequenti_volontario(nome_volontario):
                     
     cani_ordinati = sorted(conteggio_cani.items(), key=lambda x: x[1], reverse=True)
     return [c[0] for c in cani_ordinati if c[1] >= 1]
-
 
 if menu == "📅 Inserisci":
     st.header("Gestione Turni")
@@ -272,7 +281,6 @@ if menu == "📅 Inserisci":
 
     volontari_registrati = get_lista_volontari()
 
-    # --- SEZIONE NOME FUORI DAL FORM PER ESSERE LIBERA E REATTIVA ---
     st.markdown("### 👤 1. Il tuo Nome")
     scelte_volontario = ["-- Seleziona il tuo nome --"] + volontari_registrati + ["➕ Altro / Nuovo volontario"]
     
@@ -287,7 +295,6 @@ if menu == "📅 Inserisci":
 
     st.markdown("---")
 
-    # --- FORM PER IL RESTO DEL TURNO ---
     with st.form("form_turno"):
         st.markdown("### 🕒 2. Dettagli Turno e Cani")
         col1, col2 = st.columns(2)
@@ -296,13 +303,7 @@ if menu == "📅 Inserisci":
             giorno = st.selectbox(
                 "Giorno della settimana:",
                 [
-                    "Lunedì",
-                    "Martedì",
-                    "Mercoledì",
-                    "Giovedì",
-                    "Venerdì",
-                    "Sabato",
-                    "Domenica",
+                    "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica",
                 ],
             )
             fascia = st.selectbox("Fascia oraria:", ["Mattina", "Pomeriggio"])
@@ -378,7 +379,7 @@ if menu == "📅 Inserisci":
                 elif not cani_fatti:
                     st.error("❌ **Errore:** Devi selezionare almeno un cane per poter registrare il turno!")
                 else:
-                    lista_turni = carica_file_json(DB_TURNI, [])
+                    lista_turni = carica_da_firestore("turni", [])
                     
                     volontario_normalizzato = volontario_finale.strip().lower()
                     doppione_trovato = any(
@@ -392,8 +393,9 @@ if menu == "📅 Inserisci":
                     if doppione_trovato:
                         st.error(f"⚠️ **Attenzione:** {volontario_finale} risulta già registrato per {giorno} ({fascia}) in questa settimana!")
                     else:
+                        id_turno = str(datetime.now().timestamp())
                         nuovo_turno = {
-                            "id": str(datetime.now().timestamp()),
+                            "id": id_turno,
                             "settimana": settimana_scelta,
                             "volontario": volontario_finale,
                             "giorno": giorno,
@@ -402,14 +404,13 @@ if menu == "📅 Inserisci":
                             "cani_fatti": cani_fatti,
                             "note": note,
                         }
-                        lista_turni.append(nuovo_turno)
-                        salva_file_json(DB_TURNI, lista_turni)
+                        salva_su_firestore("turni", id_turno, nuovo_turno)
                         st.success(f"Turno registrato con successo per {volontario_finale}!")
 
 elif menu == "👀 Panoramica":
     st.header("Gestione Turni e Copertura")
 
-    turni_attuali = carica_file_json(DB_TURNI, [])
+    turni_attuali = carica_da_firestore("turni", [])
 
     if is_weekend_o_venerdi_sera:
         scelte_visualizzazione = [label_corr, label_pros]
@@ -426,7 +427,6 @@ elif menu == "👀 Panoramica":
         t for t in turni_attuali if t.get("settimana") == settimana_vista
     ]
 
-    # Applicazione dei filtri provenienti dalla Sidebar
     if st.session_state.get("filtro_cane_side", "Tutti i cani") != "Tutti i cani":
         cane_scelto = st.session_state["filtro_cane_side"]
         turni_filtrati = [t for t in turni_filtrati if cane_scelto in t.get("cani_fatti", [])]
@@ -441,13 +441,7 @@ elif menu == "👀 Panoramica":
         st.info("Nessun turno trovato con i filtri selezionati per questo periodo.")
     else:
         giorni_settimana = [
-            "Lunedì",
-            "Martedì",
-            "Mercoledì",
-            "Giovedì",
-            "Venerdì",
-            "Sabato",
-            "Domenica",
+            "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica",
         ]
 
         for giorno in giorni_settimana:
@@ -487,7 +481,6 @@ elif menu == "👀 Panoramica":
                         if t["note"]:
                             st.caption(f"Note: {t['note']}")
 
-                        # --- MODIFICA ed ELIMINAZIONE ---
                         if st.session_state.is_admin:
                             col_mod, col_del = st.columns(2)
                             with col_mod:
@@ -507,8 +500,8 @@ elif menu == "👀 Panoramica":
                                     if st.button("Conferma Eliminazione 🛑", key=f"conf_del_{t['id']}"):
                                         if t['id'].startswith("lpu_"):
                                             original_lpu_id = t['id'].replace("lpu_", "")
-                                            tutti_lpu = carica_file_json(DB_TURNI_LPU, [])
-                                            lpu_trovato = next((item for item in tutti_lpu if item["id"] == original_lpu_id), None)
+                                            tutti_lpu = carica_da_firestore("turni_lpu", [])
+                                            lpu_trovato = next((item for item in tutti_lpu if item.get("id") == original_lpu_id), None)
                                             
                                             if lpu_trovato:
                                                 nome_lp = lpu_trovato.get("lpu")
@@ -517,17 +510,11 @@ elif menu == "👀 Panoramica":
                                                     st.session_state.lpu_data[nome_lp]["ore_fatte"] = max(
                                                         0.0, st.session_state.lpu_data[nome_lp]["ore_fatte"] - ore_storno
                                                     )
-                                                    salva_file_json(DB_LPU, st.session_state.lpu_data)
+                                                    salva_su_firestore("lpu_data", nome_lp, st.session_state.lpu_data[nome_lp])
                                                 
-                                                nuovo_lpu_list = [item for item in tutti_lpu if item["id"] != original_lpu_id]
-                                                salva_file_json(DB_TURNI_LPU, nuovo_lpu_list)
+                                                elimina_da_firestore("turni_lpu", original_lpu_id)
 
-                                        lista_aggiornata = [
-                                            item
-                                            for item in carica_file_json(DB_TURNI, [])
-                                            if item["id"] != t["id"]
-                                        ]
-                                        salva_file_json(DB_TURNI, lista_aggiornata)
+                                        elimina_da_firestore("turni", t['id'])
                                         if f"editing_{t['id']}" in st.session_state:
                                             del st.session_state[f"editing_{t['id']}"]
                                         st.success("Turno eliminato!")
@@ -557,13 +544,17 @@ elif menu == "👀 Panoramica":
                                         if not nuovi_cani:
                                             st.error("Errore: seleziona almeno un cane.")
                                         else:
-                                            lista_completa = carica_file_json(DB_TURNI, [])
-                                            for item in lista_completa:
-                                                if item["id"] == t["id"]:
-                                                    item["orario"] = nuovo_orario
-                                                    item["note"] = nuove_note
-                                                    item["cani_fatti"] = nuovi_cani
-                                            salva_file_json(DB_TURNI, lista_completa)
+                                            t_aggiornato = {
+                                                "id": t["id"],
+                                                "settimana": t["settimana"],
+                                                "volontario": t["volontario"],
+                                                "giorno": t["giorno"],
+                                                "fascia": t["fascia"],
+                                                "orario": nuovo_orario,
+                                                "cani_fatti": nuovi_cani,
+                                                "note": nuove_note
+                                            }
+                                            salva_su_firestore("turni", t["id"], t_aggiornato)
                                             st.session_state[f"editing_{t['id']}"] = False
                                             st.success("Turno modificato con successo!")
                                             st.rerun()
@@ -611,7 +602,7 @@ elif menu == "🐶 Cani":
         if st.button("Aggiungi Cane"):
             if new_dog.strip() and new_dog not in st.session_state.cani:
                 st.session_state.cani.append(new_dog.strip())
-                salva_file_json(DB_CANI, st.session_state.cani)
+                db.collection("cani").document("lista").set({"elementi": st.session_state.cani})
                 st.success(f"Cane '{new_dog}' aggiunto con successo!")
                 st.rerun()
             elif new_dog in st.session_state.cani:
@@ -627,14 +618,14 @@ elif menu == "🐶 Cani":
                     st.write(f"Confermi l'eliminazione di {dog}?")
                     if st.button("Sì, elimina", key=f"conf_del_dog_{dog}"):
                         st.session_state.cani.remove(dog)
-                        salva_file_json(DB_CANI, st.session_state.cani)
+                        db.collection("cani").document("lista").set({"elementi": st.session_state.cani})
                         st.success(f"Cane '{dog}' eliminato.")
                         st.rerun()
 
 elif menu == "📊 Statistiche":
     st.header("📊 Statistiche Uscite Cani")
     
-    tutti_i_turni = carica_file_json(DB_TURNI, [])
+    tutti_i_turni = carica_da_firestore("turni", [])
     tutte_le_settimane = sorted(
         list(set(t.get("settimana") for t in tutti_i_turni))
     )
@@ -712,7 +703,7 @@ elif menu == "📊 Statistiche":
 elif menu == "📚 Archivio":
     st.header("📚 Archivio Storico delle Settimane Passate")
     
-    tutti_i_turni = carica_file_json(DB_TURNI, [])
+    tutti_i_turni = carica_da_firestore("turni", [])
     tutte_le_settimane = sorted(
         list(set(t.get("settimana") for t in tutti_i_turni))
     )
@@ -807,17 +798,18 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                     if not nome_lpu.strip():
                         st.error("Inserisci un nome valido.")
                     else:
-                        if nome_lpu.strip() not in st.session_state.lpu_data:
-                            st.session_state.lpu_data[nome_lpu.strip()] = {
+                        nome_pulito = nome_lpu.strip()
+                        if nome_pulito not in st.session_state.lpu_data:
+                            st.session_state.lpu_data[nome_pulito] = {
                                 "ore_totali": float(ore_totali_obbligatorie),
                                 "ore_fatte": 0.0,
                             }
                         else:
-                            st.session_state.lpu_data[nome_lpu.strip()][
+                            st.session_state.lpu_data[nome_pulito][
                                 "ore_totali"
                             ] = float(ore_totali_obbligatorie)
 
-                        salva_file_json(DB_LPU, st.session_state.lpu_data)
+                        salva_su_firestore("lpu_data", nome_pulito, st.session_state.lpu_data[nome_pulito])
                         st.success(f"LPU '{nome_lpu}' salvato con successo!")
                         st.rerun()
 
@@ -858,7 +850,7 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                     with col_btn_lpu:
                         if st.button("Elimina 🗑️", key=f"btn_del_lpu_{nome}"):
                             del lpu_dict[nome]
-                            salva_file_json(DB_LPU, lpu_dict)
+                            elimina_da_firestore("lpu_data", nome)
                             st.success("LPU rimosso.")
                             st.rerun()
 
@@ -882,13 +874,7 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                     giorno_lpu = st.selectbox(
                         "Giorno:",
                         [
-                            "Lunedì",
-                            "Martedì",
-                            "Mercoledì",
-                            "Giovedì",
-                            "Venerdì",
-                            "Sabato",
-                            "Domenica",
+                            "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica",
                         ],
                         key="g_lpu",
                     )
@@ -935,12 +921,12 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                             "note": nota_lpu,
                         }
                         st.session_state.turni_lpu.append(nuovo_t_lpu)
-                        salva_file_json(DB_TURNI_LPU, st.session_state.turni_lpu)
+                        salva_su_firestore("turni_lpu", id_univoco, nuovo_t_lpu)
 
                         st.session_state.lpu_data[lpu_scelto][
                             "ore_fatte"
                         ] += float(ore_svolte_val)
-                        salva_file_json(DB_LPU, st.session_state.lpu_data)
+                        salva_su_firestore("lpu_data", lpu_scelto, st.session_state.lpu_data[lpu_scelto])
 
                         turno_generale_equivalente = {
                             "id": f"lpu_{id_univoco}",
@@ -949,14 +935,12 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                             "giorno": giorno_lpu,
                             "fascia": fascia_lpu,
                             "orario": orario_lpu_str,
-                            "cani_fatti": [],  # Nessun cane associato, solo pulizie
+                            "cani_fatti": [],
                             "note": (
                                 f"[LPU - Pulizie / {ore_svolte_val}h] {nota_lpu}"
                             ),
                         }
-                        turni_gen = carica_file_json(DB_TURNI, [])
-                        turni_gen.append(turno_generale_equivalente)
-                        salva_file_json(DB_TURNI, turni_gen)
+                        salva_su_firestore("turni", f"lpu_{id_univoco}", turno_generale_equivalente)
 
                         st.success(
                             f"Turno registrato per {lpu_scelto}! Aggiunte"
@@ -966,7 +950,7 @@ elif menu == "🛠️ Gestione LPU (Admin)":
 
         with tab_lpu_storico:
             st.subheader("📚 Storico, Modifica ed Eliminazione Turni LPU")
-            tutti_turni_lpu = carica_file_json(DB_TURNI_LPU, [])
+            tutti_turni_lpu = carica_da_firestore("turni_lpu", [])
 
             if not tutti_turni_lpu:
                 st.info("Nessun turno LPU registrato.")
@@ -1002,30 +986,19 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                             if nome_lpu_riferimento in st.session_state.lpu_data:
                                 st.session_state.lpu_data[
                                     nome_lpu_riferimento
-                                ]["ore_fatte"] = max(
+                                    ]["ore_fatte"] = max(
                                     0.0,
                                     st.session_state.lpu_data[
                                         nome_lpu_riferimento
                                     ]["ore_fatte"]
                                     - ore_da_stornare,
                                 )
-                                salva_file_json(
-                                    DB_LPU, st.session_state.lpu_data
+                                salva_su_firestore(
+                                    "lpu_data", nome_lpu_riferimento, st.session_state.lpu_data[nome_lpu_riferimento]
                                 )
 
-                            nuovo_storico_lpu = [
-                                item
-                                for item in carica_file_json(DB_TURNI_LPU, [])
-                                if item["id"] != tl["id"]
-                            ]
-                            salva_file_json(DB_TURNI_LPU, nuovo_storico_lpu)
-
-                            turni_gen_aggiornato = [
-                                item
-                                for item in carica_file_json(DB_TURNI, [])
-                                if item["id"] != f"lpu_{tl['id']}"
-                            ]
-                            salva_file_json(DB_TURNI, turni_gen_aggiornato)
+                            elimina_da_firestore("turni_lpu", tl['id'])
+                            elimina_da_firestore("turni", f"lpu_{tl['id']}")
 
                             st.success(
                                 "Turno LPU eliminato, ore stornate e rimosso dalla panoramica con successo!"
@@ -1055,16 +1028,17 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                                 vecchie_ore = tl.get("ore", 0.0)
                                 differenza_ore = nuove_ore_val - vecchie_ore
 
-                                tutti_lpu_file = carica_file_json(
-                                    DB_TURNI_LPU, []
-                                )
-                                for item in tutti_lpu_file:
-                                    if item["id"] == tl["id"]:
-                                        item["ore"] = float(nuove_ore_val)
-                                        item["note"] = nuove_note_val
-                                salva_file_json(
-                                    DB_TURNI_LPU, tutti_lpu_file
-                                )
+                                tl_aggiornato = {
+                                    "id": tl["id"],
+                                    "lpu": tl["lpu"],
+                                    "settimana": tl["settimana"],
+                                    "giorno": tl["giorno"],
+                                    "fascia": tl["fascia"],
+                                    "orario": tl["orario"],
+                                    "ore": float(nuove_ore_val),
+                                    "note": nuove_note_val
+                                }
+                                salva_su_firestore("turni_lpu", tl["id"], tl_aggiornato)
 
                                 nome_lpu_riferimento = tl.get("lpu")
                                 if (
@@ -1080,22 +1054,14 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                                         ]["ore_fatte"]
                                         + differenza_ore,
                                     )
-                                    salva_file_json(
-                                        DB_LPU, st.session_state.lpu_data
+                                    salva_su_firestore(
+                                        "lpu_data", nome_lpu_riferimento, st.session_state.lpu_data[nome_lpu_riferimento]
                                     )
 
-                                turni_gen_file = carica_file_json(
-                                    DB_TURNI, []
-                                )
-                                for item in turni_gen_file:
-                                    if item["id"] == f"lpu_{tl['id']}":
-                                        item["note"] = (
-                                            f"[LPU - Pulizie / {nuove_ore_val}h]"
-                                            f" {nuove_note_val}"
-                                        )
-                                salva_file_json(
-                                    DB_TURNI, turni_gen_file
-                                )
+                                turno_gen_esistente = db.collection("turni").document(f"lpu_{tl['id']}").get().to_dict()
+                                if turno_gen_esistente:
+                                    turno_gen_esistente["note"] = f"[LPU - Pulizie / {nuove_ore_val}h] {nuove_note_val}"
+                                    salva_su_firestore("turni", f"lpu_{tl['id']}", turno_gen_esistente)
 
                                 st.session_state[
                                     f"editing_lpu_{tl['id']}"
