@@ -487,7 +487,7 @@ elif menu == "👀 Panoramica":
                         if t["note"]:
                             st.caption(f"Note: {t['note']}")
 
-                        # --- MODIFICA ED ELIMINAZIONE PROTETTE DA AREA ADMIN ---
+                        # --- MODIFICA ed ELIMINAZIONE ---
                         if st.session_state.is_admin:
                             col_mod, col_del = st.columns(2)
                             with col_mod:
@@ -502,11 +502,9 @@ elif menu == "👀 Panoramica":
                                     st.caption("*(Modifica LPU nella tab dedicata)*")
                             
                             with col_del:
-                                # --- ELIMINAZIONE SICURA CON POPOVER DI CONFERMA ---
                                 with st.popover(f"🗑️ Elimina ({t['volontario']})"):
                                     st.write("Sei sicuro di voler eliminare questo turno?")
                                     if st.button("Conferma Eliminazione 🛑", key=f"conf_del_{t['id']}"):
-                                        # Se è un turno LPU, eliminiamo anche dal DB LPU e storniamo le ore
                                         if t['id'].startswith("lpu_"):
                                             original_lpu_id = t['id'].replace("lpu_", "")
                                             tutti_lpu = carica_file_json(DB_TURNI_LPU, [])
@@ -535,7 +533,7 @@ elif menu == "👀 Panoramica":
                                         st.success("Turno eliminato!")
                                         st.rerun()
 
-                            if st.session_state.get(f"editing_{t['id']}", False):
+                            if not t['id'].startswith("lpu_") and st.session_state.get(f"editing_{t['id']}", False):
                                 with st.form(key=f"form_mod_{t['id']}"):
                                     st.subheader(f"Modifica Turno di {t['volontario']}")
                                     
@@ -551,7 +549,7 @@ elif menu == "👀 Panoramica":
                                     nuovi_cani = st.multiselect(
                                         "Cani gestiti:",
                                         st.session_state.cani,
-                                        default=[c for c in t["cani_fatti"] if c in st.session_state.cani],
+                                        default=[c for c in t.get("cani_fatti", []) if c in st.session_state.cani],
                                         key=f"cani_mod_{t['id']}"
                                     )
                                     btn_salva_mod = st.form_submit_button("Salva Modifiche ✅")
@@ -625,7 +623,6 @@ elif menu == "🐶 Cani":
             with col_d1:
                 st.write(f"🐾 **{dog}**")
             with col_d2:
-                # --- ELIMINAZIONE SICURA PER I CANI ---
                 with st.popover("Elimina"):
                     st.write(f"Confermi l'eliminazione di {dog}?")
                     if st.button("Sì, elimina", key=f"conf_del_dog_{dog}"):
