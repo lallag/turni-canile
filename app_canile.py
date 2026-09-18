@@ -23,6 +23,8 @@ st.markdown(
 # --- GESTIONE DATI PERSISTENTI TRAMITE JSON ---
 DB_TURNI = "turni.json"
 DB_CANI = "cani.json"
+DB_LPU = "lpu_canile.json"
+DB_TURNI_LPU = "turni_lpu_canile.json"
 
 
 def carica_file_json(filename, default_val):
@@ -57,6 +59,12 @@ if "cani" not in st.session_state:
             "Amber",
         ],
     )
+
+if "lpu_data" not in st.session_state:
+    st.session_state.lpu_data = carica_file_json(DB_LPU, {})
+
+if "turni_lpu" not in st.session_state:
+    st.session_state.turni_lpu = carica_file_json(DB_TURNI_LPU, [])
 
 if "turni" not in st.session_state:
     st.session_state.turni = carica_file_json(DB_TURNI, [])
@@ -175,13 +183,19 @@ with st.container():
             st.warning(f"⚠️ **Attenzione ({giorno_oggi_str}):** Ci sono cani senza volontari assegnati oggi: `{', '.join(cani_scoperti_oggi)}`")
 
 # --- MENU PRINCIPALE IN ALTO ---
-opzioni_menu = [
+opzioni_base = [
     "📅 Inserisci",
     "👀 Panoramica",
     "🐶 Cani",
     "📊 Statistiche",
     "📚 Archivio",
 ]
+
+if st.session_state.is_admin:
+    opzioni_menu = opzioni_base + ["🛠️ Gestione LPU (Admin)"]
+else:
+    opzioni_menu = opzioni_base
+
 menu = st.pills("Seleziona sezione:", opzioni_menu, default=opzioni_menu[0])
 st.markdown("---")
 
@@ -738,3 +752,364 @@ elif menu == "📚 Archivio":
                 mostra_fascia_storica("Pomeriggio", col_p)
 
             st.markdown("---")
+
+elif menu == "🛠️ Gestione LPU (Admin)":
+    st.header("🛠️ Gestione Lavori Socialmente Utili (LPU)")
+
+    if not st.session_state.is_admin:
+        st.error("Area riservata esclusivamente agli amministratori.")
+    else:
+        st.markdown(
+            "Gestisci il personale LPU, inserisci e modifica i turni con"
+            " relative ore e monitora il monte ore totale e mancante."
+        )
+
+        tab_lpu_anagrafica, tab_lpu_inserisci, tab_lpu_storico = st.tabs(
+            [
+                "📋 Monte Ore & Ore Mancanti",
+                "➕ Assegna Turno LPU",
+                "📚 Storico & Modifica Turni LPU",
+            ]
+        )
+
+        with tab_lpu_anagrafica:
+            st.subheader("➕ Aggiungi o Configura un LPU")
+            with st.form("form_aggiungi_lpu"):
+                nome_lpu = st.text_input("Nome e Cognome LPU:")
+                ore_totali_obbligatorie = st.number_input(
+                    "Monte ore totale richiesto:",
+                    min_value=1.0,
+                    value=50.0,
+                    step=1.0,
+                )
+
+                btn_salva_lpu = st.form_submit_button("Crea / Salva LPU 📝")
+                if btn_salva_lpu:
+                    if not nome_lpu.strip():
+                        st.error("Inserisci un nome valido.")
+                    else:
+                        if nome_lpu.strip() not in st.session_state.lpu_data:
+                            st.session_state.lpu_data[nome_lpu.strip()] = {
+                                "ore_totali": float(ore_totali_obbligatorie),
+                                "ore_fatte": 0.0,
+                            }
+                        else:
+                            st.session_state.lpu_data[nome_lpu.strip()][
+                                "ore_totali"
+                            ] = float(ore_totali_obbligatorie)
+
+                        salva_file_json(DB_LPU, st.session_state.lpu_data)
+                        st.success(f"LPU '{nome_lpu}' salvato con successo!")
+                        st.rerun()
+
+            st.markdown("---")
+            st.subheader("📋 Monitoraggio Ore LPU (Fatte e Mancanti)")
+
+            lpu_dict = st.session_state.lpu_data
+            if not lpu_dict:
+                st.info("Nessun LPU registrato nel sistema.")
+            else:
+                dati_tabella_lpu = []
+                for nome, info in lpu_dict.items():
+                    tot = info.get("ore_totali", 0.0)
+                    fatte = info.get("ore_fatte", 0.0)
+                    mancanti = max(0.0, tot - fatte)
+
+                    dati_tabella_lpu.append(
+                        {
+                            "Nome LPU": nome,
+                            "Ore Totali": tot,
+                            "Ore Fatte": fatte,
+                            "Ore Mancanti": mancanti,
+                        }
+                    )
+
+                df_lpu = pd.DataFrame(dati_tabella_lpu)
+                st.dataframe(df_lpu, use_container_width=True)
+
+                st.markdown("### 🗑️ Gestione LPU")
+                for nome in list(lpu_dict.keys()):
+                    col_del_lpu, col_btn_lpu = st.columns([3, 1])
+                    with col_del_lpu:
+                        st.write(
+                            f"• **{nome}** (Fatte:"
+                            f" {lpu_dict[nome]['ore_fatte']}h / Totali:"
+                            f" {lpu_dict[nome]['ore_totali']}h)"
+                        )
+                    with col_btn_lpu:
+                        if st.button("Elimina 🗑️", key=f"btn_del_lpu_{nome}"):
+                            del lpu_dict[nome]
+                            salva_file_json(DB_LPU, lpu_dict)
+                            st.success("LPU rimosso.")
+                            st.rerun()
+
+        with tab_lpu_inserisci:
+            st.subheader("📅 Registra un Turno per LPU")
+            lpu_nomi_disponibili = list(st.session_state.lpu_data.keys())
+
+            if not lpu_nomi_disponibili:
+                st.warning(
+                    "Prima devi registrare almeno un LPU nella scheda 'Monte"
+                    " Ore & Ore Mancanti'."
+                )
+            else:
+                with st.form("form_turno_lpu"):
+                    lpu_scelto = st.selectbox(
+                        "Seleziona LPU:", lpu_nomi_disponibili
+                    )
+                    settimana_lpu = st.selectbox(
+                        "Settimana:", [label_corr, label_pros]
+                    )
+                    giorno_lpu = st.selectbox(
+                        "Giorno:",
+                        [
+                            "Lunedì",
+                            "Martedì",
+                            "Mercoledì",
+                            "Giovedì",
+                            "Venerdì",
+                            "Sabato",
+                            "Domenica",
+                        ],
+                        key="g_lpu",
+                    )
+                    fascia_lpu = st.selectbox(
+                        "Fascia:", ["Mattina", "Pomeriggio"], key="f_lpu"
+                    )
+
+                    col_ol1, col_ol2 = st.columns(2)
+                    with col_ol1:
+                        ora_i_lpu = st.time_input(
+                            "Ora Inizio:", value=time(8, 30), key="oi_lpu"
+                        )
+                    with col_ol2:
+                        ora_f_lpu = st.time_input(
+                            "Ora Fine:", value=time(12, 0), key="of_lpu"
+                        )
+
+                    orario_lpu_str = (
+                        f"{ora_i_lpu.strftime('%H:%M')} -"
+                        f" {ora_f_lpu.strftime('%H:%M')}"
+                    )
+                    ore_svolte_val = st.number_input(
+                        "Quante ore di lavoro aggiungere al monte ore?",
+                        min_value=0.5,
+                        value=3.5,
+                        step=0.5,
+                    )
+
+                    cani_assegnati_lpu = st.multiselect(
+                        "Cani assegnati:", st.session_state.cani, key="cani_lpu_sel"
+                    )
+                    nota_lpu = st.text_area("Note turno LPU:", key="note_lpu_in")
+
+                    btn_registra_turno_lpu = st.form_submit_button(
+                        "Assegna Turno e Aggiorna Ore 🚀"
+                    )
+                    if btn_registra_turno_lpu:
+                        if not cani_assegnati_lpu:
+                            st.error("Seleziona almeno un cane.")
+                        else:
+                            id_univoco = str(datetime.now().timestamp())
+                            nuovo_t_lpu = {
+                                "id": id_univoco,
+                                "lpu": lpu_scelto,
+                                "settimana": settimana_lpu,
+                                "giorno": giorno_lpu,
+                                "fascia": fascia_lpu,
+                                "orario": orario_lpu_str,
+                                "ore": float(ore_svolte_val),
+                                "cani": cani_assegnati_lpu,
+                                "note": nota_lpu,
+                            }
+                            st.session_state.turni_lpu.append(nuovo_t_lpu)
+                            salva_file_json(DB_TURNI_LPU, st.session_state.turni_lpu)
+
+                            st.session_state.lpu_data[lpu_scelto][
+                                "ore_fatte"
+                            ] += float(ore_svolte_val)
+                            salva_file_json(DB_LPU, st.session_state.lpu_data)
+
+                            turno_generale_equivalente = {
+                                "id": f"lpu_{id_univoco}",
+                                "settimana": settimana_lpu,
+                                "volontario": f"{lpu_scelto} (LPU)",
+                                "giorno": giorno_lpu,
+                                "fascia": fascia_lpu,
+                                "orario": orario_lpu_str,
+                                "cani_fatti": cani_assegnati_lpu,
+                                "note": (
+                                    f"[LPU - {ore_svolte_val}h] {nota_lpu}"
+                                ),
+                            }
+                            turni_gen = carica_file_json(DB_TURNI, [])
+                            turni_gen.append(turno_generale_equivalente)
+                            salva_file_json(DB_TURNI, turni_gen)
+
+                            st.success(
+                                f"Turno registrato per {lpu_scelto}! Aggiunte"
+                                f" {ore_svolte_val} ore."
+                            )
+                            st.rerun()
+
+        with tab_lpu_storico:
+            st.subheader("📚 Storico, Modifica ed Eliminazione Turni LPU")
+            tutti_turni_lpu = carica_file_json(DB_TURNI_LPU, [])
+
+            if not tutti_turni_lpu:
+                st.info("Nessun turno LPU registrato.")
+            else:
+                for tl in reversed(tutti_turni_lpu):
+                    cani_s = ", ".join(tl.get("cani", []))
+                    st.markdown(
+                        f"• **{tl.get('lpu')}** - {tl.get('settimana')} | 📅"
+                        f" {tl.get('giorno')} ({tl.get('fascia')} -"
+                        f" {tl.get('orario')}) | ⏱️ **{tl.get('ore')} ore** |"
+                        f" 🐾 [{cani_s}]"
+                    )
+                    if tl.get("note"):
+                        st.caption(f"Note: {tl.get('note')}")
+
+                    col_m_lpu, col_d_lpu = st.columns(2)
+                    with col_m_lpu:
+                        if st.button(
+                            "✏️ Modifica Ore/Dettagli",
+                            key=f"edit_lpu_btn_{tl['id']}",
+                        ):
+                            st.session_state[f"editing_lpu_{tl['id']}"] = (
+                                not st.session_state.get(
+                                    f"editing_lpu_{tl['id']}", False
+                                )
+                            )
+                            st.rerun()
+                    with col_d_lpu:
+                        if st.button(
+                            "🗑️ Elimina Turno LPU", key=f"del_lpu_turno_{tl['id']}"
+                        ):
+                            nome_lpu_riferimento = tl.get("lpu")
+                            ore_da_stornare = tl.get("ore", 0.0)
+
+                            if nome_lpu_riferimento in st.session_state.lpu_data:
+                                st.session_state.lpu_data[
+                                    nome_lpu_riferimento
+                                ]["ore_fatte"] = max(
+                                    0.0,
+                                    st.session_state.lpu_data[
+                                        nome_lpu_riferimento
+                                    ]["ore_fatte"]
+                                    - ore_da_stornare,
+                                )
+                                salva_file_json(
+                                    DB_LPU, st.session_state.lpu_data
+                                )
+
+                            nuovo_storico_lpu = [
+                                item
+                                for item in carica_file_json(DB_TURNI_LPU, [])
+                                if item["id"] != tl["id"]
+                            ]
+                            salva_file_json(DB_TURNI_LPU, nuovo_storico_lpu)
+
+                            turni_gen_aggiornato = [
+                                item
+                                for item in carica_file_json(DB_TURNI, [])
+                                if item["id"] != f"lpu_{tl['id']}"
+                            ]
+                            salva_file_json(DB_TURNI, turni_gen_aggiornato)
+
+                            st.success(
+                                "Turno LPU eliminato e ore stornate con"
+                                " successo!"
+                            )
+                            st.rerun()
+
+                    if st.session_state.get(f"editing_lpu_{tl['id']}", False):
+                        with st.form(key=f"form_mod_lpu_turno_{tl['id']}"):
+                            st.subheader(f"Modifica Turno di {tl.get('lpu')}")
+                            nuove_ore_val = st.number_input(
+                                "Nuovo monte ore:",
+                                min_value=0.5,
+                                value=float(tl.get("ore", 3.5)),
+                                step=0.5,
+                                key=f"n_ore_{tl['id']}",
+                            )
+                            nuove_note_val = st.text_area(
+                                "Note:",
+                                value=tl.get("note", ""),
+                                key=f"n_note_{tl['id']}",
+                            )
+
+                            nuovi_cani_val = st.multiselect(
+                                "Cani assegnati:",
+                                st.session_state.cani,
+                                default=[
+                                    c
+                                    for c in tl.get("cani", [])
+                                    if c in st.session_state.cani
+                                ],
+                                key=f"n_cani_{tl['id']}",
+                            )
+
+                            btn_salva_mod_lpu = st.form_submit_button(
+                                "Salva Modifiche LPU ✅"
+                            )
+                            if btn_salva_mod_lpu:
+                                if not nuovi_cani_val:
+                                    st.error("Seleziona almeno un cane.")
+                                else:
+                                    vecchie_ore = tl.get("ore", 0.0)
+                                    differenza_ore = nuove_ore_val - vecchie_ore
+
+                                    tutti_lpu_file = carica_file_json(
+                                        DB_TURNI_LPU, []
+                                    )
+                                    for item in tutti_lpu_file:
+                                        if item["id"] == tl["id"]:
+                                            item["ore"] = float(nuove_ore_val)
+                                            item["note"] = nuove_note_val
+                                            item["cani"] = nuovi_cani_val
+                                    salva_file_json(
+                                        DB_TURNI_LPU, tutti_lpu_file
+                                    )
+
+                                    nome_lpu_riferimento = tl.get("lpu")
+                                    if (
+                                        nome_lpu_riferimento
+                                        in st.session_state.lpu_data
+                                    ):
+                                        st.session_state.lpu_data[
+                                            nome_lpu_riferimento
+                                        ]["ore_fatte"] = max(
+                                            0.0,
+                                            st.session_state.lpu_data[
+                                                nome_lpu_riferimento
+                                            ]["ore_fatte"]
+                                            + differenza_ore,
+                                        )
+                                        salva_file_json(
+                                            DB_LPU, st.session_state.lpu_data
+                                        )
+
+                                    turni_gen_file = carica_file_json(
+                                    DB_TURNI, []
+                                    )
+                                    for item in turni_gen_file:
+                                        if item["id"] == f"lpu_{tl['id']}":
+                                            item["cani_fatti"] = nuovi_cani_val
+                                            item["note"] = (
+                                                f"[LPU - {nuove_ore_val}h]"
+                                                f" {nuove_note_val}"
+                                            )
+                                    salva_file_json(
+                                        DB_TURNI, turni_gen_file
+                                    )
+
+                                    st.session_state[
+                                        f"editing_lpu_{tl['id']}"
+                                    ] = False
+                                    st.success(
+                                        "Turno LPU modificato con successo!"
+                                    )
+                                    st.rerun()
+
+                    st.markdown("---")
