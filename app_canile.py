@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, time
 import os
+import json
 import pandas as pd
 import pytz
 import streamlit as st
@@ -21,11 +22,18 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- INIZIALIZZAZIONE FIREBASE FIRESTORE ---
+# --- INIZIALIZZAZIONE FIREBASE FIRESTORE SICURA ---
 if not firebase_admin._apps:
-    cred_dict = dict(st.secrets["firebase"])
-    cred = credentials.Certificate(cred_dict)
-    firebase_admin.initialize_app(cred)
+    try:
+        # Legge il JSON completo salvato nei Secrets di Streamlit in modo sicuro
+        firebase_json_str = st.secrets["FIREBASE_JSON"]
+        cred_dict = json.loads(firebase_json_str)
+        
+        cred = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred)
+    except Exception as e:
+        st.error(f"Errore di connessione a Firebase: {e}")
+        st.stop()
 
 db = firestore.client()
 
