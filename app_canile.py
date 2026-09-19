@@ -785,7 +785,7 @@ elif menu == "🛠️ Gestione LPU (Admin)":
     else:
         st.markdown(
             "Gestisci il personale LPU, inserisci e modifica i turni con"
-            " relative ore (pulizie generali) e monitora il monte ore totale e mancante."
+            " relative ore e monitora il monte ore totale e mancante."
         )
 
         tab_lpu_anagrafica, tab_lpu_inserisci, tab_lpu_storico = st.tabs(
@@ -869,7 +869,7 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                             st.rerun()
 
         with tab_lpu_inserisci:
-            st.subheader("📅 Registra un Turno per LPU (Pulizie)")
+            st.subheader("📅 Registra un Turno per LPU")
             lpu_nomi_disponibili = list(st.session_state.lpu_data.keys())
 
             if not lpu_nomi_disponibili:
