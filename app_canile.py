@@ -61,14 +61,18 @@ def carica_da_firestore(collezione_nome, default_val):
 def salva_su_firestore(collezione_nome, doc_id, data_dict):
     try:
         db.collection(collezione_nome).document(str(doc_id)).set(data_dict)
+        return True
     except Exception as e:
-        pass
+        st.error(f"Errore di salvataggio su Firebase: {e}")
+        return False
 
 def elimina_da_firestore(collezione_nome, doc_id):
     try:
         db.collection(collezione_nome).document(str(doc_id)).delete()
+        return True
     except Exception as e:
-        pass
+        st.error(f"Errore di eliminazione: {e}")
+        return False
 
 # Inizializzazione stato con Firebase
 if "cani" not in st.session_state:
@@ -411,8 +415,8 @@ if menu == "📅 Inserisci":
                             "cani_fatti": cani_fatti,
                             "note": note,
                         }
-                        salva_su_firestore("turni", id_turno, nuovo_turno)
-                        st.success(f"Turno registrato con successo per {volontario_finale}!")
+                        if salva_su_firestore("turni", id_turno, nuovo_turno):
+                            st.success(f"Turno registrato con successo per {volontario_finale}!")
 
 elif menu == "👀 Panoramica":
     st.header("Gestione Turni e Copertura")
