@@ -415,7 +415,7 @@ if menu == "📅 Inserisci":
                         }
                         try:
                             db.collection("turni").document(id_turno).set(nuovo_turno)
-                            st.success(f"Turno registrato con successo per {volontario_finale}!")
+                            st.toast(f"Turno registrato con successo per {volontario_finale}!", icon="🎉")
                             st.rerun()
                         except Exception as e:
                             st.error(f"ERRORE DI SCRITTURA FIREBASE: {e}")
