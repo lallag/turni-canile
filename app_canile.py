@@ -22,17 +22,17 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- INIZIALIZZAZIONE FIREBASE FIRESTORE SICURA ---
+# --- INIZIALIZZAZIONE FIREBASE FIRESTORE SICURA CON DIAGNOSTICA ---
 if not firebase_admin._apps:
     try:
-        # Legge il JSON completo salvato nei Secrets di Streamlit in modo sicuro
         firebase_json_str = st.secrets["FIREBASE_JSON"]
         cred_dict = json.loads(firebase_json_str)
         
         cred = credentials.Certificate(cred_dict)
         firebase_admin.initialize_app(cred)
+        st.sidebar.success("✅ Firebase Connesso!")
     except Exception as e:
-        st.error(f"Errore di connessione a Firebase: {e}")
+        st.sidebar.error(f"❌ Errore Secrets/Firebase: {e}")
         st.stop()
 
 db = firestore.client()
@@ -466,7 +466,6 @@ elif menu == "👀 Panoramica":
 
             def mostra_fascia_calendario(fascia_nome, col_container):
                 with col_container:
-                    # Utilizziamo un container con bordo per creare l'effetto "scheda" o "card" visiva
                     with st.container(border=True):
                         icona_fascia = "🌅" if fascia_nome == "Mattina" else "🌇"
                         st.markdown(f"### {icona_fascia} {fascia_nome}")
