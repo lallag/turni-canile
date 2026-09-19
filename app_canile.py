@@ -225,7 +225,7 @@ if st.session_state.is_admin:
 else:
     opzioni_menu = opzioni_base
 
-menu = st.pills("Seleziona sezione:", opzioni_menu, default=opzioni_base[0])
+menu = st.pills("Seleziona sezione:", opzioni_menu, default=opzioni_menu[0])
 st.markdown("---")
 
 def get_intervalli_settimane():
@@ -466,6 +466,7 @@ elif menu == "👀 Panoramica":
 
             def mostra_fascia_calendario(fascia_nome, col_container):
                 with col_container:
+                    # Utilizziamo un container con bordo per creare l'effetto "scheda" o "card" visiva
                     with st.container(border=True):
                         icona_fascia = "🌅" if fascia_nome == "Mattina" else "🌇"
                         st.markdown(f"### {icona_fascia} {fascia_nome}")
@@ -1084,3 +1085,4 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                                 st.rerun()
 
                     st.markdown("---")
+```[cite: 3]
