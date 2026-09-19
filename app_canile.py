@@ -22,17 +22,17 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- INIZIALIZZAZIONE FIREBASE FIRESTORE SICURA CON DIAGNOSTICA ---
+# --- INIZIALIZZAZIONE FIREBASE FIRESTORE SICURA ---
 if not firebase_admin._apps:
     try:
+        # Legge il JSON completo salvato nei Secrets di Streamlit in modo sicuro
         firebase_json_str = st.secrets["FIREBASE_JSON"]
         cred_dict = json.loads(firebase_json_str)
         
         cred = credentials.Certificate(cred_dict)
         firebase_admin.initialize_app(cred)
-        st.sidebar.success("✅ Firebase Connesso!")
     except Exception as e:
-        st.sidebar.error(f"❌ Errore Secrets/Firebase: {e}")
+        st.error(f"Errore di connessione a Firebase: {e}")
         st.stop()
 
 db = firestore.client()
@@ -225,7 +225,7 @@ if st.session_state.is_admin:
 else:
     opzioni_menu = opzioni_base
 
-menu = st.pills("Seleziona sezione:", opzioni_menu, default=opzioni_menu[0])
+menu = st.pills("Seleziona sezione:", opzioni_menu, default=opzioni_base[0])
 st.markdown("---")
 
 def get_intervalli_settimane():
