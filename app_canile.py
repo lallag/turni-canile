@@ -8,7 +8,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 
 st.set_page_config(
-    page_title="Gestione Turni Canile", page_icon="icona.jpg", layout="wide"
+    page_title="Gestione Turni Canile", page_icon="🐶", layout="wide"
 )
 
 # Tag aggiornati con versione forzata (?v=10) per aggirare la cache testarda di iOS
