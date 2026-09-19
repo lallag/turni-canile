@@ -3,19 +3,91 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestione Turni</title>
+    <title>Gestione Turni Canile</title>
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon.png">
     <link rel="icon" type="image/png" href="icon.png">
     <style>
-        body { font-family: sans-serif; text-align: center; padding-top: 100px; background: #f9f9f9; }
-        .btn { background: #4CAF50; color: white; padding: 15px 30px; text-decoration: none; font-size: 18px; border-radius: 8px; display: inline-block; font-weight: bold; }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .card {
+            background: #ffffff;
+            padding: 40px 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }
+        .icon-container {
+            font-size: 60px;
+            margin-bottom: 15px;
+        }
+        h1 {
+            font-size: 24px;
+            color: #2e7d32;
+            margin-bottom: 12px;
+        }
+        p {
+            font-size: 15px;
+            color: #666;
+            margin-bottom: 30px;
+            line-height: 1.5;
+        }
+        .btn {
+            background-color: #4CAF50;
+            color: white;
+            padding: 16px 24px;
+            text-decoration: none;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 12px;
+            display: block;
+            width: 100%;
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+            transition: all 0.2s ease;
+        }
+        .btn:hover {
+            background-color: #43a047;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(76, 175, 80, 0.4);
+        }
+        .btn:active {
+            transform: translateY(0);
+        }
+        .footer-note {
+            margin-top: 25px;
+            font-size: 12px;
+            color: #999;
+        }
     </style>
 </head>
 <body>
-    <h1>🐶 Gestione Turni Canile</h1>
-    <p>Tocca il pulsante per aprire l'applicazione:</p>
-    <br>
-    <a href="https://turni-canile.streamlit.app/" class="btn">Apri Applicazione</a>
+
+    <div class="card">
+        <div class="icon-container">🐶</div>
+        <h1>Gestione Turni Canile</h1>
+        <p>Benvenuto! Tocca il pulsante qui sotto per accedere rapidamente all'applicazione dei turni.</p>
+        
+        <a href="https://turni-canile.streamlit.app/" class="btn">Apri Applicazione</a>
+        
+        <div class="footer-note">
+            💡 Suggerimento: aggiungi questa pagina alla schermata Home del telefono per usarla come un'app.
+        </div>
+    </div>
+
 </body>
 </html>
