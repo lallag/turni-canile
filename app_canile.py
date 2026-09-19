@@ -25,7 +25,6 @@ st.markdown(
 # --- INIZIALIZZAZIONE FIREBASE FIRESTORE SICURA ---
 if not firebase_admin._apps:
     try:
-        # Legge il JSON completo salvato nei Secrets di Streamlit in modo sicuro
         firebase_json_str = st.secrets["FIREBASE_JSON"]
         cred_dict = json.loads(firebase_json_str)
         
@@ -415,11 +414,9 @@ if menu == "📅 Inserisci":
                             "cani_fatti": cani_fatti,
                             "note": note,
                         }
-                        try:
-                            db.collection("turni").document(id_turno).set(nuovo_turno)
+                        if salva_su_firestore("turni", id_turno, nuovo_turno):
                             st.success(f"Turno registrato con successo per {volontario_finale}!")
-                        except Exception as e:
-                            st.error(f"ERRORE DI SCRITTURA FIREBASE: {e}")
+                            st.rerun() # <-- Forza il ricaricamento immediato per mostrarlo in panoramica
 
 elif menu == "👀 Panoramica":
     st.header("Gestione Turni e Copertura")
