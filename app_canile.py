@@ -52,7 +52,6 @@ def carica_da_firestore(collezione_nome, default_val):
         elif collezione_nome == "lpu_data":
             return data if data else default_val
         elif collezione_nome == "turni" or collezione_nome == "turni_lpu":
-            # Per le liste di turni salvate come documenti con id="item" o simili, oppure dizionari
             lista = [doc.to_dict() for doc in docs]
             return lista if lista else default_val
         return default_val
@@ -463,127 +462,129 @@ elif menu == "👀 Panoramica":
 
             def mostra_fascia_calendario(fascia_nome, col_container):
                 with col_container:
-                    st.markdown(f"### ☀️ {fascia_nome}")
-                    turni_fascia = [
-                        t for t in turni_giorno if t["fascia"] == fascia_nome
-                    ]
+                    # Utilizziamo un container con bordo per creare l'effetto "scheda" o "card" visiva
+                    with st.container(border=True):
+                        icona_fascia = "🌅" if fascia_nome == "Mattina" else "🌇"
+                        st.markdown(f"### {icona_fascia} {fascia_nome}")
+                        
+                        turni_fascia = [
+                            t for t in turni_giorno if t["fascia"] == fascia_nome
+                        ]
 
-                    if not turni_fascia:
-                        st.caption("Nessun volontario registrato.")
-                        st.markdown("**Cani scoperti:**")
-                        for c in sorted(st.session_state.cani):
-                            st.error(f"❌ {c}")
-                        return
-
-                    st.markdown("**Volontari presenti:**")
-                    for t in turni_fascia:
-                        cani_str = ", ".join(t["cani_fatti"]) if t.get("cani_fatti") else ""
-                        if cani_str:
-                            dettaglio_mostra = f"🐾 [{cani_str}]"
+                        if not turni_fascia:
+                            st.caption("Nessun volontario registrato.")
+                            st.markdown("**Cani scoperti:**")
+                            for c in sorted(st.session_state.cani):
+                                st.error(f"❌ {c}")
                         else:
-                            dettaglio_mostra = "🧹 *Pulizie / LPU*"
-
-                        st.write(
-                            f"• **{t['volontario']}** ({t['orario']}) {dettaglio_mostra}"
-                        )
-                        if t["note"]:
-                            st.caption(f"Note: {t['note']}")
-
-                        if st.session_state.is_admin:
-                            col_mod, col_del = st.columns(2)
-                            with col_mod:
-                                if not t['id'].startswith("lpu_"):
-                                    if st.button(
-                                        f"✏️ Modifica ({t['volontario']})",
-                                        key=f"mod_btn_{giorno}_{fascia_nome}_{t['id']}",
-                                    ):
-                                        st.session_state[f"editing_{t['id']}"] = not st.session_state.get(f"editing_{t['id']}", False)
-                                        st.rerun()
+                            st.markdown("**Volontari presenti:**")
+                            for t in turni_fascia:
+                                cani_str = ", ".join(t["cani_fatti"]) if t.get("cani_fatti") else ""
+                                if cani_str:
+                                    dettaglio_mostra = f"🐾 [{cani_str}]"
                                 else:
-                                    st.caption("*(Modifica LPU nella tab dedicata)*")
-                            
-                            with col_del:
-                                with st.popover(f"🗑️ Elimina ({t['volontario']})"):
-                                    st.write("Sei sicuro di voler eliminare questo turno?")
-                                    if st.button("Conferma Eliminazione 🛑", key=f"conf_del_{t['id']}"):
-                                        if t['id'].startswith("lpu_"):
-                                            original_lpu_id = t['id'].replace("lpu_", "")
-                                            tutti_lpu = carica_da_firestore("turni_lpu", [])
-                                            lpu_trovato = next((item for item in tutti_lpu if item.get("id") == original_lpu_id), None)
-                                            
-                                            if lpu_trovato:
-                                                nome_lp = lpu_trovato.get("lpu")
-                                                ore_storno = lpu_trovato.get("ore", 0.0)
-                                                if nome_lp in st.session_state.lpu_data:
-                                                    st.session_state.lpu_data[nome_lp]["ore_fatte"] = max(
-                                                        0.0, st.session_state.lpu_data[nome_lp]["ore_fatte"] - ore_storno
-                                                    )
-                                                    salva_su_firestore("lpu_data", nome_lp, st.session_state.lpu_data[nome_lp])
-                                                
-                                                elimina_da_firestore("turni_lpu", original_lpu_id)
+                                    dettaglio_mostra = "🧹 *Pulizie / LPU*"
 
-                                        elimina_da_firestore("turni", t['id'])
-                                        if f"editing_{t['id']}" in st.session_state:
-                                            del st.session_state[f"editing_{t['id']}"]
-                                        st.success("Turno eliminato!")
-                                        st.rerun()
+                                st.write(
+                                    f"• **{t['volontario']}** ({t['orario']}) {dettaglio_mostra}"
+                                )
+                                if t["note"]:
+                                    st.caption(f"Note: {t['note']}")
 
-                            if not t['id'].startswith("lpu_") and st.session_state.get(f"editing_{t['id']}", False):
-                                with st.form(key=f"form_mod_{t['id']}"):
-                                    st.subheader(f"Modifica Turno di {t['volontario']}")
-                                    
-                                    col_m1, col_m2 = st.columns(2)
-                                    with col_m1:
-                                        m_inizio = st.time_input("Ora Inizio:", value=time(8, 30), key=f"min_{t['id']}")
-                                    with col_m2:
-                                        m_fine = st.time_input("Ora Fine:", value=time(12, 0), key=f"mfin_{t['id']}")
-                                    
-                                    nuovo_orario = f"{m_inizio.strftime('%H:%M')} - {m_fine.strftime('%H:%M')}"
-                                    nuove_note = st.text_area("Note:", value=t.get("note", ""), key=f"note_mod_{t['id']}")
-                                    
-                                    nuovi_cani = st.multiselect(
-                                        "Cani gestiti:",
-                                        st.session_state.cani,
-                                        default=[c for c in t.get("cani_fatti", []) if c in st.session_state.cani],
-                                        key=f"cani_mod_{t['id']}"
-                                    )
-                                    btn_salva_mod = st.form_submit_button("Salva Modifiche ✅")
-                                    if btn_salva_mod:
-                                        if not nuovi_cani:
-                                            st.error("Errore: seleziona almeno un cane.")
+                                if st.session_state.is_admin:
+                                    col_mod, col_del = st.columns(2)
+                                    with col_mod:
+                                        if not t['id'].startswith("lpu_"):
+                                            if st.button(
+                                                f"✏️ Modifica ({t['volontario']})",
+                                                key=f"mod_btn_{giorno}_{fascia_nome}_{t['id']}",
+                                            ):
+                                                st.session_state[f"editing_{t['id']}"] = not st.session_state.get(f"editing_{t['id']}", False)
+                                                st.rerun()
                                         else:
-                                            t_aggiornato = {
-                                                "id": t["id"],
-                                                "settimana": t["settimana"],
-                                                "volontario": t["volontario"],
-                                                "giorno": t["giorno"],
-                                                "fascia": t["fascia"],
-                                                "orario": nuovo_orario,
-                                                "cani_fatti": nuovi_cani,
-                                                "note": nuove_note
-                                            }
-                                            salva_su_firestore("turni", t["id"], t_aggiornato)
-                                            st.session_state[f"editing_{t['id']}"] = False
-                                            st.success("Turno modificato con successo!")
-                                            st.rerun()
+                                            st.caption("*(Modifica LPU nella tab dedicata)*")
+                                    
+                                    with col_del:
+                                        with st.popover(f"🗑️ Elimina ({t['volontario']})"):
+                                            st.write("Sei sicuro di voler eliminare questo turno?")
+                                            if st.button("Conferma Eliminazione 🛑", key=f"conf_del_{t['id']}"):
+                                                if t['id'].startswith("lpu_"):
+                                                    original_lpu_id = t['id'].replace("lpu_", "")
+                                                    tutti_lpu = carica_da_firestore("turni_lpu", [])
+                                                    lpu_trovato = next((item for item in tutti_lpu if item.get("id") == original_lpu_id), None)
+                                                    
+                                                    if lpu_trovato:
+                                                        nome_lp = lpu_trovato.get("lpu")
+                                                        ore_storno = lpu_trovato.get("ore", 0.0)
+                                                        if nome_lp in st.session_state.lpu_data:
+                                                            st.session_state.lpu_data[nome_lp]["ore_fatte"] = max(
+                                                                0.0, st.session_state.lpu_data[nome_lp]["ore_fatte"] - ore_storno
+                                                            )
+                                                            salva_su_firestore("lpu_data", nome_lp, st.session_state.lpu_data[nome_lp])
+                                                        
+                                                        elimina_da_firestore("turni_lpu", original_lpu_id)
 
-                    cani_coperti = set()
-                    for t in turni_fascia:
-                        for c in t.get("cani_fatti", []):
-                            cani_coperti.add(c)
+                                                elimina_da_firestore("turni", t['id'])
+                                                if f"editing_{t['id']}" in st.session_state:
+                                                    del st.session_state[f"editing_{t['id']}"]
+                                                st.success("Turno eliminato!")
+                                                st.rerun()
 
-                    cani_scoperti = [
-                        c
-                        for c in st.session_state.cani
-                        if c not in cani_coperti
-                    ]
+                                    if not t['id'].startswith("lpu_") and st.session_state.get(f"editing_{t['id']}", False):
+                                        with st.form(key=f"form_mod_{t['id']}"):
+                                            st.subheader(f"Modifica Turno di {t['volontario']}")
+                                            
+                                            col_m1, col_m2 = st.columns(2)
+                                            with col_m1:
+                                                m_inizio = st.time_input("Ora Inizio:", value=time(8, 30), key=f"min_{t['id']}")
+                                            with col_m2:
+                                                m_fine = st.time_input("Ora Fine:", value=time(12, 0), key=f"mfin_{t['id']}")
+                                            
+                                            nuovo_orario = f"{m_inizio.strftime('%H:%M')} - {m_fine.strftime('%H:%M')}"
+                                            nuove_note = st.text_area("Note:", value=t.get("note", ""), key=f"note_mod_{t['id']}")
+                                            
+                                            nuovi_cani = st.multiselect(
+                                                "Cani gestiti:",
+                                                st.session_state.cani,
+                                                default=[c for c in t.get("cani_fatti", []) if c in st.session_state.cani],
+                                                key=f"cani_mod_{t['id']}"
+                                            )
+                                            btn_salva_mod = st.form_submit_button("Salva Modifiche ✅")
+                                            if btn_salva_mod:
+                                                if not nuovi_cani:
+                                                    st.error("Errore: seleziona almeno un cane.")
+                                                else:
+                                                    t_aggiornato = {
+                                                        "id": t["id"],
+                                                        "settimana": t["settimana"],
+                                                        "volontario": t["volontario"],
+                                                        "giorno": t["giorno"],
+                                                        "fascia": t["fascia"],
+                                                        "orario": nuovo_orario,
+                                                        "cani_fatti": nuovi_cani,
+                                                        "note": nuove_note
+                                                    }
+                                                    salva_su_firestore("turni", t["id"], t_aggiornato)
+                                                    st.session_state[f"editing_{t['id']}"] = False
+                                                    st.success("Turno modificato con successo!")
+                                                    st.rerun()
 
-                    st.markdown("**Cani scoperti:**")
-                    if cani_scoperti:
-                        for c in sorted(cani_scoperti):
-                            st.error(f"❌ {c}")
-                    else:
-                        st.success("Tutti i cani sono coperti!")
+                            st.markdown("---")
+                            st.markdown("**Cani scoperti:**")
+                            cani_coperti = set()
+                            for t in turni_fascia:
+                                for c in t.get("cani_fatti", []):
+                                    cani_coperti.add(c)
+
+                            cani_scoperti = [
+                                c for c in st.session_state.cani if c not in cani_coperti
+                            ]
+
+                            if cani_scoperti:
+                                for c in sorted(cani_scoperti):
+                                    st.error(f"❌ {c}")
+                            else:
+                                st.success("Tutti i cani sono coperti!")
 
             with col_m:
                 mostra_fascia_calendario("Mattina", col_m)
@@ -746,23 +747,23 @@ elif menu == "📚 Archivio":
 
             def mostra_fascia_storica(fascia_nome, col_container):
                 with col_container:
-                    st.markdown(f"### ☀️ {fascia_nome}")
-                    turni_fascia = [
-                        t for t in turni_giorno if t["fascia"] == fascia_nome
-                    ]
+                    with st.container(border=True):
+                        st.markdown(f"### ☀️ {fascia_nome}")
+                        turni_fascia = [
+                            t for t in turni_giorno if t["fascia"] == fascia_nome
+                        ]
 
-                    if not turni_fascia:
-                        st.caption("Nessun volontario registrato in questa fascia.")
-                        return
-
-                    st.markdown("**Volontari presenti:**")
-                    for t in turni_fascia:
-                        cani_str = ", ".join(t["cani_fatti"]) if t.get("cani_fatti") else "🧹 Pulizie / LPU"
-                        st.write(
-                            f"• **{t['volontario']}** ({t['orario']}) - {cani_str}"
-                        )
-                        if t["note"]:
-                            st.caption(f"Note: {t['note']}")
+                        if not turni_fascia:
+                            st.caption("Nessun volontario registrato in questa fascia.")
+                        else:
+                            st.markdown("**Volontari presenti:**")
+                            for t in turni_fascia:
+                                cani_str = ", ".join(t["cani_fatti"]) if t.get("cani_fatti") else "🧹 Pulizie / LPU"
+                                st.write(
+                                    f"• **{t['volontario']}** ({t['orario']}) - {cani_str}"
+                                )
+                                if t["note"]:
+                                    st.caption(f"Note: {t['note']}")
 
             with col_m:
                 mostra_fascia_storica("Mattina", col_m)
