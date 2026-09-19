@@ -7,12 +7,19 @@ import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-
-
 st.set_page_config(
-    page_title="Turni Canile",
-    page_icon="🐶", # Scegli l'emoji che preferisci
-    layout="centered"
+    page_title="Gestione Turni Canile", page_icon="icona.jpg", layout="wide"
+)
+
+# Tag aggiornati con versione forzata (?v=10) per aggirare la cache testarda di iOS
+st.markdown(
+    """
+    <head>
+        <link rel="manifest" href="manifest.json">
+        <link rel="apple-touch-icon" href="https://github.com/lallag/turni-canile/blob/main/icona.jpg?raw=true&v=10">
+    </head>
+""",
+    unsafe_allow_html=True,
 )
 
 # --- INIZIALIZZAZIONE FIREBASE FIRESTORE SICURA ---
