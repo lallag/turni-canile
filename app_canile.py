@@ -415,8 +415,7 @@ if menu == "📅 Inserisci":
                             "cani_fatti": cani_fatti,
                             "note": note,
                         }
-
-try:
+                        try:
                             db.collection("turni").document(id_turno).set(nuovo_turno)
                             st.success(f"Turno registrato con successo per {volontario_finale}!")
                         except Exception as e:
